@@ -1,0 +1,265 @@
+openapi: 3.1.0
+info:
+  title: Auth API — Autenticación de usuarios
+  version: 0.1.0
+  description: |
+    Endpoints de autenticación para la feature 001-user-auth.
+    Ver spec: specs/001-user-auth/spec.md
+    Ver plan: specs/001-user-auth/plan.md
+
+    Convenciones:
+    - Access y refresh tokens SIEMPRE como cookies HttpOnly + Secure + SameSite=lax.
+    - Ningún endpoint devuelve tokens en el cuerpo de la respuesta.
+    - Mensaje de error de login/refresh siempre genérico: "Credenciales inválidas".
+servers:
+  - url: http://localhost:8000
+    description: Backend local (dev)
+
+tags:
+  - name: auth
+    description: Registro, login, logout y renovación de sesión.
+
+paths:
+  /auth/register:
+    post:
+      tags: [auth]
+      summary: Crear una cuenta
+      description: |
+        Crea una cuenta con email y contraseña, nickname opcional.
+        Si nickname no se proporciona, el servidor genera uno con formato `user<5 dígitos>`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: Cuenta creada. Se establecen cookies de sesión.
+          headers:
+            Set-Cookie:
+              description: |
+                Dos cabeceras Set-Cookie: una para `access_token` y otra para `refresh_token`,
+                ambas HttpOnly + Secure + SameSite=lax.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthenticatedUser"
+        "409":
+          description: email o nickname ya registrados.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Validación fallida (email malformado, contraseña <8, nickname inválido).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Iniciar sesión
+      description: |
+        Autentica con email y contraseña.
+        **Importante**: cualquier error (email no existente, contraseña incorrecta o
+        cuenta bloqueada temporalmente) devuelve el mismo mensaje genérico y el mismo
+        código HTTP. El tiempo de respuesta también es equivalente (mitigación timing).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login correcto. Se establecen cookies de sesión (rotadas).
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthenticatedUser"
+        "401":
+          description: Credenciales inválidas (cualquier causa).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                detail: Credenciales inválidas
+        "429":
+          description: Demasiados intentos desde esta IP (rate limit 5/min).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/refresh:
+    post:
+      tags: [auth]
+      summary: Renovar la sesión
+      description: |
+        Lee el refresh token de la cookie HttpOnly, verifica que no esté blacklisteado,
+        lo invalida (rotación) y emite un nuevo par access/refresh en nuevas cookies.
+      security:
+        - refreshCookie: []
+      responses:
+        "200":
+          description: Nueva sesión emitida.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthenticatedUser"
+        "401":
+          description: Refresh token ausente, inválido, expirado o ya usado/blacklisteado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: Cerrar sesión
+      description: |
+        Invalida el refresh token actual (lo añade a la blacklist) y borra las cookies
+        del cliente. Después de esto, presentar las mismas cookies a cualquier endpoint
+        protegido devuelve 401.
+      security:
+        - refreshCookie: []
+      responses:
+        "204":
+          description: Sesión cerrada. Cookies limpiadas.
+          headers:
+            Set-Cookie:
+              description: |
+                Set-Cookie con `Max-Age=0` para `access_token` y `refresh_token`.
+              schema:
+                type: string
+        "401":
+          description: No había sesión activa.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/me:
+    get:
+      tags: [auth]
+      summary: Estado del usuario actual
+      description: |
+        Devuelve datos básicos del usuario autenticado a partir de la cookie de access.
+        El frontend lo usa para saber si debe mostrar rutas protegidas sin necesidad de
+        leer la cookie desde JS (que es imposible con HttpOnly).
+      security:
+        - accessCookie: []
+      responses:
+        "200":
+          description: Usuario autenticado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthenticatedUser"
+        "401":
+          description: No autenticado o access token caducado. El frontend debe llamar a /auth/refresh.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  securitySchemes:
+    accessCookie:
+      type: apiKey
+      in: cookie
+      name: access_token
+      description: JWT HS256, 15 min. HttpOnly; Secure; SameSite=lax.
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: refresh_token
+      description: JWT HS256, 7 días. HttpOnly; Secure; SameSite=lax.
+
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+          writeOnly: true
+        nickname:
+          type: string
+          pattern: "^[A-Za-z]+$"
+          minLength: 1
+          maxLength: 32
+          nullable: true
+          description: Opcional. Si se omite, el servidor asigna uno `user<5 dígitos>` único.
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          writeOnly: true
+
+    AuthenticatedUser:
+      type: object
+      required: [id, email, nickname]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        nickname:
+          type: string
+
+    ErrorResponse:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          type: string
+          description: Mensaje orientado a humano. Para /auth/login y /auth/refresh es siempre "Credenciales inválidas".
+
+    ValidationError:
+      type: object
+      description: Formato de error de validación de FastAPI/Pydantic.
+      required: [detail]
+      properties:
+        detail:
+          type: array
+          items:
+            type: object
+            properties:
+              loc:
+                type: array
+                items:
+                  oneOf:
+                    - type: string
+                    - type: integer
+              msg:
+                type: string
+              type:
+                type: string

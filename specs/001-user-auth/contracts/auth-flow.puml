@@ -1,0 +1,103 @@
+@startuml auth-flow
+' Flujos principales de autenticacion: register, login, refresh, logout.
+' Spec: specs/001-user-auth/spec.md — Plan: specs/001-user-auth/plan.md
+' Diagrama en PlantUML (Principio III).
+
+skinparam sequenceArrowThickness 1
+skinparam participant {
+  BackgroundColor #FDFDFD
+  BorderColor #555555
+}
+hide footbox
+
+actor "Usuario" as U
+participant "Frontend\nReact + Vite" as FE
+participant "Backend\nFastAPI" as BE
+database "PostgreSQL\n(users, token_blacklist)" as DB
+
+== Registro ==
+U -> FE: rellena email, password, (nickname opcional)
+FE -> BE: POST /auth/register\n(credentials: include)
+BE -> BE: Pydantic valida payload\n(password >=8; nickname [A-Za-z]+)
+alt nickname no proporcionado
+  BE -> DB: intenta INSERT con nickname = user<5 digitos>
+  alt colision UNIQUE
+    BE -> BE: regenera nickname y reintenta (max 10)
+  end
+end
+BE -> DB: INSERT users (id UUIDv4, email, nickname, password_hash = bcrypt)
+alt email o nickname duplicados
+  DB --> BE: IntegrityError
+  BE --> FE: 409 {detail: "email/nickname en uso"}
+  FE --> U: muestra error especifico
+else OK
+  BE -> BE: crea access JWT (15m) + refresh JWT (7d)\npersiste refresh.jti (implicito; no va a blacklist aun)
+  BE --> FE: 201 + Set-Cookie: access_token; HttpOnly; Secure; SameSite=lax\n + Set-Cookie: refresh_token; idem
+  FE --> U: redirige a zona autenticada
+end
+
+== Login ==
+U -> FE: rellena email, password
+FE -> BE: POST /auth/login\n(credentials: include)
+BE -> BE: slowapi: <=5/min por IP?
+alt rate limit superado
+  BE --> FE: 429 Too Many Requests
+  FE --> U: "Credenciales invalidas"
+else dentro del limite
+  BE -> DB: SELECT users WHERE email=?
+  alt usuario no existe
+    BE -> BE: ejecuta verify(DUMMY_HASH)\n(mitigacion timing)
+    BE --> FE: 401 {detail: "Credenciales invalidas"}
+  else usuario existe
+    BE -> BE: passlib verify_password(input, password_hash)
+    alt coincide y cuenta no bloqueada (locked_until <= now)
+      BE -> DB: reset failed_login_attempts
+      BE -> BE: emite nuevo access + refresh (rota jti)
+      BE --> FE: 200 + Set-Cookie access/refresh
+      FE --> U: redirige a zona autenticada
+    else no coincide o cuenta bloqueada
+      BE -> DB: failed_login_attempts += 1\n(si >=10 en 15 min: locked_until = now+15m)
+      BE --> FE: 401 {detail: "Credenciales invalidas"}
+      FE --> U: "Credenciales invalidas"
+    end
+  end
+end
+
+== Acceso a ruta protegida ==
+FE -> BE: GET /alguna/ruta/protegida\n(con access_token cookie)
+BE -> BE: verify_token(access_token, alg=["HS256"])
+alt access valido
+  BE --> FE: 200 {datos}
+else access caducado
+  BE --> FE: 401
+  FE -> BE: POST /auth/refresh
+  note over BE: ver flujo "Refresh"
+  alt refresh ok
+    FE -> BE: reintenta GET protegida con nuevo access
+    BE --> FE: 200 {datos}
+  else refresh fallido
+    FE --> U: redirige a /login
+  end
+end
+
+== Refresh (rotacion) ==
+FE -> BE: POST /auth/refresh (con refresh_token cookie)
+BE -> BE: verify_token(refresh, alg=["HS256"])
+BE -> DB: SELECT token_blacklist WHERE jti=?
+alt jti blacklisteado o invalido/expirado
+  BE --> FE: 401 {detail: "Credenciales invalidas"}
+  FE --> U: redirige a /login
+else valido y no blacklisteado
+  BE -> DB: INSERT token_blacklist (jti, user_id, revoked_at, expires_at)
+  BE -> BE: emite nuevo access + nuevo refresh (jti nuevo)
+  BE --> FE: 200 + Set-Cookie access/refresh (rotados)
+end
+
+== Logout ==
+U -> FE: click en "cerrar sesion"
+FE -> BE: POST /auth/logout (con refresh_token cookie)
+BE -> DB: INSERT token_blacklist (jti del refresh actual)
+BE --> FE: 204 + Set-Cookie access_token; Max-Age=0\n + Set-Cookie refresh_token; Max-Age=0
+FE --> U: redirige a /login
+
+@enduml

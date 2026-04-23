@@ -1,0 +1,56 @@
+@startuml session-lifecycle
+' Ciclo de vida de la sesion (access JWT + refresh JWT con rotacion).
+' Spec: specs/001-user-auth/spec.md — Plan: specs/001-user-auth/plan.md
+
+skinparam state {
+  BackgroundColor #FDFDFD
+  BorderColor #555555
+}
+
+[*] --> Anonima : arranque / sin cookies
+
+state Anonima {
+  Anonima : sin access/refresh cookies
+  Anonima : solo puede acceder a / y /register
+}
+
+Anonima --> Activa : POST /auth/register ok\no POST /auth/login ok\n(Set-Cookie access + refresh)
+
+state Activa {
+  Activa : access JWT vigente (<=15 min)
+  Activa : refresh JWT vigente (<=7 dias)
+  Activa : jti del refresh NO esta en blacklist
+}
+
+Activa --> Activa : peticion autenticada\n(access valido)
+
+Activa --> AccessCaducada : access JWT caduca\n(exp <= now)
+
+state AccessCaducada {
+  AccessCaducada : access expirado
+  AccessCaducada : refresh aun vigente
+}
+
+AccessCaducada --> Activa : POST /auth/refresh ok\n(rotacion: viejo refresh -> blacklist,\nnuevo access + nuevo refresh)
+
+AccessCaducada --> Expirada : refresh tambien caducado\no /refresh rechazado
+
+Activa --> Invalidada : POST /auth/logout\n(refresh.jti -> blacklist, cookies con Max-Age=0)
+
+Activa --> Invalidada : reutilizacion de refresh blacklisteado detectada\n(evidencia de posible robo)
+
+state Invalidada {
+  Invalidada : cookies limpiadas
+  Invalidada : cualquier reuso de refresh antiguo -> 401
+}
+
+Invalidada --> Anonima : cliente ya no tiene cookies
+
+state Expirada {
+  Expirada : refresh caducado naturalmente
+  Expirada : ninguna peticion autenticada posible
+}
+
+Expirada --> Anonima : cliente debera re-loguearse
+
+@enduml
