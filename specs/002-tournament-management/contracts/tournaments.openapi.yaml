@@ -1,0 +1,545 @@
+openapi: 3.1.0
+info:
+  title: Competizione — Tournament Management API
+  version: 0.2.0
+  description: |
+    Contrato REST para torneos, invitaciones y participantes (feature 002).
+    Herencia: autenticación en cookie HttpOnly `access_token` (feature 001). Todos los
+    endpoints requieren autenticación salvo que se indique lo contrario.
+
+    Alcance de esta iteración: no se incluye vinculación de cuenta de Riot ni verificación
+    de resultado por API. Ver `specs/002-tournament-management/plan.md § Scope`.
+
+servers:
+  - url: /
+
+security:
+  - cookieAuth: []
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: access_token
+
+  parameters:
+    TournamentId:
+      in: path
+      name: tournamentId
+      required: true
+      schema:
+        $ref: '#/components/schemas/UUID'
+    InvitationId:
+      in: path
+      name: invitationId
+      required: true
+      schema:
+        $ref: '#/components/schemas/UUID'
+    ParticipantId:
+      in: path
+      name: participantId
+      required: true
+      schema:
+        $ref: '#/components/schemas/UUID'
+
+  responses:
+    Unauthorized:
+      description: No autenticado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: No existe o el usuario no tiene permiso (no se distingue para no filtrar existencia)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: Autenticado pero sin permiso para la acción
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ValidationError:
+      description: Payload inválido
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: Precondición de estado no satisfecha
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    UUID:
+      type: string
+      format: uuid
+      example: c0ffee00-0000-4000-8000-000000000001
+    ISODateTime:
+      type: string
+      format: date-time
+      example: 2026-04-24T10:30:00Z
+    Error:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          type: string
+        code:
+          type: string
+    TournamentFormat:
+      type: string
+      enum: [round_robin, single_elim]
+    TournamentState:
+      type: string
+      enum: [draft, open, active, finished, cancelled]
+    InvitationState:
+      type: string
+      enum: [pending, accepted, rejected, expired, cancelled]
+    MatchState:
+      type: string
+      enum: [pending, manual]
+    TournamentCreate:
+      type: object
+      required: [name, format]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        start_at:
+          $ref: '#/components/schemas/ISODateTime'
+          nullable: true
+        format:
+          $ref: '#/components/schemas/TournamentFormat'
+    TournamentUpdate:
+      type: object
+      description: Sólo aplicable en estados draft u open (FR-021).
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        start_at:
+          $ref: '#/components/schemas/ISODateTime'
+          nullable: true
+        format:
+          $ref: '#/components/schemas/TournamentFormat'
+    ParticipantSummary:
+      type: object
+      required: [id, user_id, accepted_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        user_id:
+          $ref: '#/components/schemas/UUID'
+        nickname:
+          type: string
+        accepted_at:
+          $ref: '#/components/schemas/ISODateTime'
+    Tournament:
+      type: object
+      required: [id, name, format, state, organizer_id, created_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        name:
+          type: string
+        start_at:
+          $ref: '#/components/schemas/ISODateTime'
+          nullable: true
+        format:
+          $ref: '#/components/schemas/TournamentFormat'
+        state:
+          $ref: '#/components/schemas/TournamentState'
+        organizer_id:
+          $ref: '#/components/schemas/UUID'
+        created_at:
+          $ref: '#/components/schemas/ISODateTime'
+        started_at:
+          $ref: '#/components/schemas/ISODateTime'
+          nullable: true
+        finished_at:
+          $ref: '#/components/schemas/ISODateTime'
+          nullable: true
+        cancelled_at:
+          $ref: '#/components/schemas/ISODateTime'
+          nullable: true
+        participants:
+          type: array
+          items:
+            $ref: '#/components/schemas/ParticipantSummary'
+    Invitation:
+      type: object
+      required: [id, tournament_id, invited_user_id, inviter_user_id, state, created_at, expires_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        tournament_id:
+          $ref: '#/components/schemas/UUID'
+        invited_user_id:
+          $ref: '#/components/schemas/UUID'
+        inviter_user_id:
+          $ref: '#/components/schemas/UUID'
+        state:
+          $ref: '#/components/schemas/InvitationState'
+        created_at:
+          $ref: '#/components/schemas/ISODateTime'
+        expires_at:
+          $ref: '#/components/schemas/ISODateTime'
+        responded_at:
+          $ref: '#/components/schemas/ISODateTime'
+          nullable: true
+    InvitationCreate:
+      type: object
+      required: [invited_user_id]
+      properties:
+        invited_user_id:
+          $ref: '#/components/schemas/UUID'
+    StandingEntry:
+      type: object
+      required: [participant_id, user_id, wins, losses, byes, points, rank]
+      properties:
+        participant_id:
+          $ref: '#/components/schemas/UUID'
+        user_id:
+          $ref: '#/components/schemas/UUID'
+        nickname:
+          type: string
+        wins:
+          type: integer
+        losses:
+          type: integer
+        byes:
+          type: integer
+        points:
+          type: integer
+        rank:
+          type: integer
+    RoundMatchSummary:
+      type: object
+      required: [id, round_number, is_bye, state]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        round_number:
+          type: integer
+        bracket_position:
+          type: integer
+          nullable: true
+        player1_id:
+          $ref: '#/components/schemas/UUID'
+        player2_id:
+          $ref: '#/components/schemas/UUID'
+          nullable: true
+        is_bye:
+          type: boolean
+        state:
+          $ref: '#/components/schemas/MatchState'
+        winner_participant_id:
+          $ref: '#/components/schemas/UUID'
+          nullable: true
+    Schedule:
+      type: object
+      required: [format, rounds]
+      properties:
+        format:
+          $ref: '#/components/schemas/TournamentFormat'
+        rounds:
+          type: array
+          items:
+            type: object
+            required: [number, matches]
+            properties:
+              number:
+                type: integer
+              matches:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RoundMatchSummary'
+
+paths:
+  /tournaments:
+    post:
+      summary: Crear torneo (FR-005..FR-007)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TournamentCreate'
+      responses:
+        '201':
+          description: Torneo creado en estado draft
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tournament'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    get:
+      summary: Listar torneos visibles para el usuario autenticado
+      description: Organizador, participante o invitado con invitación pendiente.
+      parameters:
+        - in: query
+          name: state
+          schema:
+            $ref: '#/components/schemas/TournamentState'
+      responses:
+        '200':
+          description: Lista de torneos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Tournament'
+
+  /tournaments/{tournamentId}:
+    parameters:
+      - $ref: '#/components/parameters/TournamentId'
+    get:
+      summary: Detalle de torneo
+      responses:
+        '200':
+          description: Torneo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tournament'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      summary: Modificar torneo antes de iniciar (FR-021, FR-022)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TournamentUpdate'
+      responses:
+        '200':
+          description: Torneo actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tournament'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /tournaments/{tournamentId}/open:
+    parameters:
+      - $ref: '#/components/parameters/TournamentId'
+    post:
+      summary: Abrir inscripciones (draft -> open) (FR-017)
+      responses:
+        '200':
+          description: Torneo en estado open
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tournament'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /tournaments/{tournamentId}/start:
+    parameters:
+      - $ref: '#/components/parameters/TournamentId'
+    post:
+      summary: Iniciar torneo (FR-018..FR-031)
+      description: |
+        Requiere torneo en estado open y ≥ 2 participantes confirmados. Genera el calendario,
+        los tournament_codes y bloquea los parámetros de configuración.
+      responses:
+        '200':
+          description: Torneo activo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tournament'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /tournaments/{tournamentId}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/TournamentId'
+    post:
+      summary: Cancelar torneo (FR-055..FR-057)
+      responses:
+        '200':
+          description: Torneo cancelado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tournament'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /tournaments/{tournamentId}/invitations:
+    parameters:
+      - $ref: '#/components/parameters/TournamentId'
+    post:
+      summary: Invitar usuario (FR-009, FR-011, FR-013)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvitationCreate'
+      responses:
+        '201':
+          description: Invitación creada (expires_at = now + 48h)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invitation'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    get:
+      summary: Listar invitaciones del torneo (sólo organizador)
+      responses:
+        '200':
+          description: Lista
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Invitation'
+
+  /tournaments/{tournamentId}/invitations/{invitationId}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/TournamentId'
+      - $ref: '#/components/parameters/InvitationId'
+    post:
+      summary: Cancelar invitación pendiente (FR-014)
+      responses:
+        '200':
+          description: Invitación cancelada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invitation'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /invitations:
+    get:
+      summary: Invitaciones recibidas por el usuario autenticado
+      parameters:
+        - in: query
+          name: state
+          schema:
+            $ref: '#/components/schemas/InvitationState'
+      responses:
+        '200':
+          description: Lista
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Invitation'
+
+  /invitations/{invitationId}/accept:
+    parameters:
+      - $ref: '#/components/parameters/InvitationId'
+    post:
+      summary: Aceptar invitación (FR-012)
+      description: Crea Participant. Rechaza si now >= expires_at (410).
+      responses:
+        '200':
+          description: Invitación aceptada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invitation'
+        '410':
+          description: Invitación expirada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /invitations/{invitationId}/reject:
+    parameters:
+      - $ref: '#/components/parameters/InvitationId'
+    post:
+      summary: Rechazar invitación (FR-012)
+      responses:
+        '200':
+          description: Invitación rechazada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invitation'
+
+  /tournaments/{tournamentId}/participants/{participantId}:
+    parameters:
+      - $ref: '#/components/parameters/TournamentId'
+      - $ref: '#/components/parameters/ParticipantId'
+    delete:
+      summary: Eliminar participante antes de iniciar (FR-015)
+      responses:
+        '204':
+          description: Eliminado
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /tournaments/{tournamentId}/schedule:
+    parameters:
+      - $ref: '#/components/parameters/TournamentId'
+    get:
+      summary: Calendario del torneo (FR-051, FR-053)
+      responses:
+        '200':
+          description: Rondas y matches
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Schedule'
+
+  /tournaments/{tournamentId}/standings:
+    parameters:
+      - $ref: '#/components/parameters/TournamentId'
+    get:
+      summary: Clasificación round-robin (FR-047, FR-048, FR-053)
+      description: 404 si el torneo es single_elim.
+      responses:
+        '200':
+          description: Tabla ordenada
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StandingEntry'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /tournaments/{tournamentId}/bracket:
+    parameters:
+      - $ref: '#/components/parameters/TournamentId'
+    get:
+      summary: Cuadro single-elim (FR-053)
+      description: 404 si el torneo es round_robin.
+      responses:
+        '200':
+          description: Cuadro
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Schedule'
+        '404':
+          $ref: '#/components/responses/NotFound'

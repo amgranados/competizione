@@ -1,0 +1,48 @@
+@startuml match-lifecycle
+' Estados del Match.
+' Spec: specs/002-tournament-management/spec.md FR-031..FR-046.
+' Iteracion actual: solo transicion manual activa. verified_api queda reservado.
+
+skinparam state {
+  BackgroundColor #FAFAFA
+  BorderColor #444
+  ArrowColor #555
+}
+
+title Match lifecycle (feature 002)
+
+state "Match (non-bye)" as Match {
+  [*] --> pending : generado al iniciar torneo\n(round-robin: todo; single-elim: primera ronda)\no al cerrarse ronda anterior (FR-028)
+  pending --> manual : POST /matches/{id}/manual-result\n(solo organizador; FR-040, FR-041)
+  manual --> [*] : terminal (FR-042 inamovible)
+
+  pending : tournament_code generado (UUID v4 interno esta iteracion)
+  pending : code_created_at fijado (FR-033)
+  manual : winner_participant_id fijado
+  manual : resolved_at fijado
+}
+
+state "Match (bye)" as Bye {
+  [*] --> bye_pending : generado junto con la ronda\n(round-robin impar o single-elim no potencia de 2)
+  bye_pending --> bye_resolved : al cerrarse la ronda\n(winner = player1, tag = manual)
+  bye_resolved --> [*] : terminal
+
+  bye_pending : tournament_code = null (bye no genera codigo)
+  bye_pending : no suma puntos (FR-048)
+  bye_resolved : avanza automaticamente en single-elim
+}
+
+note right of Match
+  Valor reservado: "verified_api".
+  NO aceptado por ningun endpoint en esta iteracion.
+  Se activara con la feature futura de verificacion por API Riot.
+end note
+
+note right of Bye
+  En round-robin: el bye ocupa una posicion en la ronda,
+  el jugador real descansa, no suma punto.
+  En single-elim: el bye avanza al jugador real a la
+  ronda siguiente automaticamente al cerrarse la ronda.
+end note
+
+@enduml
