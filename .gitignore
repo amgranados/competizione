@@ -233,3 +233,10 @@ __marimo__/
 .specify
 prompts
 Claude.md
+
+# Node / frontend
+node_modules/
+frontend/dist/
+frontend/coverage/
+.env.local
+frontend/.env.local

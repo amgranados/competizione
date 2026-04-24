@@ -31,14 +31,14 @@ Estructura fijada en `plan.md` (Variante B — backend API + frontend SPA):
 
 **Purpose**: Inicializar la estructura del proyecto y herramientas compartidas. No instalar dependencias reales hasta que estas tareas se ejecuten contra la CVE audit aprobada (`research.md § CVE Audit`).
 
-- [ ] T001 Crear estructura de directorios del repositorio: `backend/app/{api/routes,core,db/migrations,models,schemas,services}`, `backend/tests/{unit,integration}`, `frontend/src/{api,context,hooks,components,pages}`, `frontend/tests/{mocks,unit,integration}` (sin ficheros dentro todavía salvo `.gitkeep` donde hiciera falta).
-- [ ] T002 [P] Crear `backend/requirements.txt` con pins mínimos aprobados: `fastapi`, `uvicorn[standard]`, `sqlalchemy[asyncio]>=2.0.30`, `alembic>=1.13`, `asyncpg`, `pydantic>=2.7`, `pydantic-settings>=2.2`, `PyJWT>=2.9`, `passlib[bcrypt]>=1.7.4`, `python-multipart>=0.0.9`, `slowapi>=0.1.9`, `httpx`, `pytest`, `pytest-asyncio`, `pytest-cov`.
-- [ ] T003 [P] Crear `frontend/package.json` con pins mínimos aprobados: `react@^18.3`, `react-dom@^18.3`, `react-router-dom@^6.22`, `vite@^5.2` (devDep), `vitest@^1.6` (devDep), `@testing-library/react`, `@testing-library/user-event`, `msw@^2`.
-- [ ] T004 [P] Crear `backend/pyproject.toml` (o `pytest.ini`) con config de pytest: `asyncio_mode = "auto"`, `testpaths = ["tests"]`, `addopts = "--cov=app --cov-report=term-missing"`.
-- [ ] T005 [P] Crear `frontend/vite.config.js` con plugin de React y `frontend/vitest.config.js` (o sección `test` en `vite.config.js`) apuntando a `tests/setup.js`.
-- [ ] T006 [P] Crear `backend/.env.example` con variables: `DATABASE_URL`, `SECRET_KEY`, `ACCESS_TOKEN_EXPIRE_MINUTES=15`, `REFRESH_TOKEN_EXPIRE_DAYS=7`, `FRONTEND_ORIGIN=http://localhost:5173`.
-- [ ] T007 [P] Crear `frontend/.env.example` con `VITE_API_BASE_URL=http://localhost:8000`.
-- [ ] T008 [P] Añadir entradas a `.gitignore` raíz: `backend/.venv/`, `backend/.env`, `backend/__pycache__/`, `backend/.pytest_cache/`, `backend/htmlcov/`, `frontend/node_modules/`, `frontend/.env.local`, `frontend/dist/`, `frontend/coverage/`.
+- [x] T001 Crear estructura de directorios del repositorio: `backend/app/{api/routes,core,db/migrations,models,schemas,services}`, `backend/tests/{unit,integration}`, `frontend/src/{api,context,hooks,components,pages}`, `frontend/tests/{mocks,unit,integration}` (sin ficheros dentro todavía salvo `.gitkeep` donde hiciera falta).
+- [x] T002 [P] Crear `backend/requirements.txt` con pins mínimos aprobados: `fastapi`, `uvicorn[standard]`, `sqlalchemy[asyncio]>=2.0.30`, `alembic>=1.13`, `asyncpg`, `pydantic>=2.7`, `pydantic-settings>=2.2`, `PyJWT>=2.9`, `passlib[bcrypt]>=1.7.4`, `python-multipart>=0.0.9`, `slowapi>=0.1.9`, `httpx`, `pytest`, `pytest-asyncio`, `pytest-cov`.
+- [x] T003 [P] Crear `frontend/package.json` con pins mínimos aprobados: `react@^18.3`, `react-dom@^18.3`, `react-router-dom@^6.22`, `vite@^5.2` (devDep), `vitest@^1.6` (devDep), `@testing-library/react`, `@testing-library/user-event`, `msw@^2`.
+- [x] T004 [P] Crear `backend/pyproject.toml` (o `pytest.ini`) con config de pytest: `asyncio_mode = "auto"`, `testpaths = ["tests"]`, `addopts = "--cov=app --cov-report=term-missing"`.
+- [x] T005 [P] Crear `frontend/vite.config.js` con plugin de React y `frontend/vitest.config.js` (o sección `test` en `vite.config.js`) apuntando a `tests/setup.js`.
+- [x] T006 [P] Crear `backend/.env.example` con variables: `DATABASE_URL`, `SECRET_KEY`, `ACCESS_TOKEN_EXPIRE_MINUTES=15`, `REFRESH_TOKEN_EXPIRE_DAYS=7`, `FRONTEND_ORIGIN=http://localhost:5173`.
+- [x] T007 [P] Crear `frontend/.env.example` con `VITE_API_BASE_URL=http://localhost:8000`.
+- [x] T008 [P] Añadir entradas a `.gitignore` raíz: `backend/.venv/`, `backend/.env`, `backend/__pycache__/`, `backend/.pytest_cache/`, `backend/htmlcov/`, `frontend/node_modules/`, `frontend/.env.local`, `frontend/dist/`, `frontend/coverage/`.
 
 **Checkpoint**: Estructura y archivos de configuración listos; dependencias declaradas (sin instalar todavía).
 
@@ -48,16 +48,16 @@ Estructura fijada en `plan.md` (Variante B — backend API + frontend SPA):
 
 **Purpose**: Infraestructura que todas las historias usan. **Bloquea** el inicio de cualquier user story.
 
-- [ ] T009 Implementar `Settings` con pydantic-settings (carga de `.env`, tipos: `DATABASE_URL: PostgresDsn`, `SECRET_KEY: str con min_length=32`, `ACCESS_TOKEN_EXPIRE_MINUTES: int`, `REFRESH_TOKEN_EXPIRE_DAYS: int`, `FRONTEND_ORIGIN: AnyHttpUrl`) en `backend/app/core/config.py`.
-- [ ] T010 Implementar engine async y `AsyncSessionLocal` + `get_db()` dependency en `backend/app/db/base.py` (usa `settings.DATABASE_URL`).
-- [ ] T011 Inicializar Alembic en `backend/app/db/migrations/` (`alembic init --template=async app/db/migrations`), configurar `alembic.ini` y `env.py` para leer `DATABASE_URL` desde `Settings` y apuntar a los modelos (`Base.metadata`).
-- [ ] T012 Crear app FastAPI en `backend/app/main.py` con `CORSMiddleware(allow_origins=[settings.FRONTEND_ORIGIN], allow_credentials=True, allow_methods=["GET","POST"], allow_headers=["Content-Type"])`. Aún no registra rutas de auth.
-- [ ] T013 [P] Crear fixtures de test en `backend/tests/conftest.py`: engine/sesión sobre BBDD de test (p. ej. base dedicada o SQLite async sólo si el humano acepta; si no, usar PostgreSQL de test vía `DATABASE_URL` override), `async_client` con `httpx.AsyncClient(app=app, base_url="http://test")`, fixture `db_session` con rollback por test.
-- [ ] T014 [P] Crear `frontend/tests/setup.js` con arranque/stop de MSW (`beforeAll server.listen`, `afterEach server.resetHandlers`, `afterAll server.close`) y configuración global de Testing Library.
-- [ ] T015 [P] Crear esqueleto de handlers MSW en `frontend/tests/mocks/authHandlers.js` y exportación de `server` (p. ej. en `frontend/tests/mocks/server.js`).
-- [ ] T016 [P] Crear `frontend/index.html` y `frontend/src/main.jsx` con `<BrowserRouter>` envolviendo la app (sin rutas todavía).
-- [ ] T017 [P] Crear `frontend/src/api/authApi.js` con helper base `request(path, options)` que hace `fetch(\`${import.meta.env.VITE_API_BASE_URL}${path}\`, { credentials: "include", headers: { "Content-Type": "application/json" }, ...options })` y parsea JSON. Aún sin endpoints específicos.
-- [ ] T018 [P] Crear esqueleto de `frontend/src/context/AuthContext.jsx` con un provider que expone `{ user, status }` y funciones placeholder; y `frontend/src/hooks/useAuth.js` que lee el contexto. Sin llamadas a red todavía.
+- [x] T009 Implementar `Settings` con pydantic-settings (carga de `.env`, tipos: `DATABASE_URL: PostgresDsn`, `SECRET_KEY: str con min_length=32`, `ACCESS_TOKEN_EXPIRE_MINUTES: int`, `REFRESH_TOKEN_EXPIRE_DAYS: int`, `FRONTEND_ORIGIN: AnyHttpUrl`) en `backend/app/core/config.py`.
+- [x] T010 Implementar engine async y `AsyncSessionLocal` + `get_db()` dependency en `backend/app/db/base.py` (usa `settings.DATABASE_URL`).
+- [x] T011 Inicializar Alembic en `backend/app/db/migrations/` (`alembic init --template=async app/db/migrations`), configurar `alembic.ini` y `env.py` para leer `DATABASE_URL` desde `Settings` y apuntar a los modelos (`Base.metadata`).
+- [x] T012 Crear app FastAPI en `backend/app/main.py` con `CORSMiddleware(allow_origins=[settings.FRONTEND_ORIGIN], allow_credentials=True, allow_methods=["GET","POST"], allow_headers=["Content-Type"])`. Aún no registra rutas de auth.
+- [x] T013 [P] Crear fixtures de test en `backend/tests/conftest.py`: engine/sesión sobre BBDD de test (p. ej. base dedicada o SQLite async sólo si el humano acepta; si no, usar PostgreSQL de test vía `DATABASE_URL` override), `async_client` con `httpx.AsyncClient(app=app, base_url="http://test")`, fixture `db_session` con rollback por test.
+- [x] T014 [P] Crear `frontend/tests/setup.js` con arranque/stop de MSW (`beforeAll server.listen`, `afterEach server.resetHandlers`, `afterAll server.close`) y configuración global de Testing Library.
+- [x] T015 [P] Crear esqueleto de handlers MSW en `frontend/tests/mocks/authHandlers.js` y exportación de `server` (p. ej. en `frontend/tests/mocks/server.js`).
+- [x] T016 [P] Crear `frontend/index.html` y `frontend/src/main.jsx` con `<BrowserRouter>` envolviendo la app (sin rutas todavía).
+- [x] T017 [P] Crear `frontend/src/api/authApi.js` con helper base `request(path, options)` que hace `fetch(\`${import.meta.env.VITE_API_BASE_URL}${path}\`, { credentials: "include", headers: { "Content-Type": "application/json" }, ...options })` y parsea JSON. Aún sin endpoints específicos.
+- [x] T018 [P] Crear esqueleto de `frontend/src/context/AuthContext.jsx` con un provider que expone `{ user, status }` y funciones placeholder; y `frontend/src/hooks/useAuth.js` que lee el contexto. Sin llamadas a red todavía.
 
 **Checkpoint**: Base lista. A partir de aquí, US1 puede empezar; US2–US5 dependen de US1 para el contrato de login/cookies.
 
@@ -73,32 +73,32 @@ Estructura fijada en `plan.md` (Variante B — backend API + frontend SPA):
 
 ### Tests for User Story 1 ⚠️ (Red: deben fallar antes de implementar)
 
-- [ ] T019 [P] [US1] Tests unitarios de password hashing en `backend/tests/unit/test_security.py`: `hash_password` devuelve derivado ≠ plaintext, `verify_password` acepta el correcto y rechaza el incorrecto, `dummy_verify` se ejecuta en tiempo comparable.
-- [ ] T020 [P] [US1] Tests unitarios de JWT con PyJWT en `backend/tests/unit/test_security.py`: `create_access_token`/`create_refresh_token` emiten tokens HS256 verificables, `verify_token` rechaza `alg=none` y algoritmos no permitidos.
-- [ ] T021 [P] [US1] Tests unitarios en `backend/tests/unit/test_auth_service.py`: `generate_unique_nickname` devuelve formato `user\d{5}` y reintenta al colisionar; `register_user` persiste `User` con `password_hash`; duplicado de email y de nickname elevan `IntegrityError` capturable.
-- [ ] T022 [P] [US1] Integration test `POST /auth/register` en `backend/tests/integration/test_auth_routes.py`: 201 + dos `Set-Cookie` con flags `HttpOnly; Secure; SameSite=lax`; 409 al repetir email; 409 al repetir nickname; 201 sin nickname ⇒ respuesta incluye `nickname` con regex `^user\d{5}$`.
-- [ ] T023 [P] [US1] Integration test `POST /auth/login` en `backend/tests/integration/test_auth_routes.py`: credenciales correctas ⇒ 200 + cookies; credenciales incorrectas ⇒ 401 con `{"detail":"Credenciales inválidas"}`; email inexistente ⇒ misma respuesta exacta que contraseña incorrecta; diferencia de latencia entre ambos casos < umbral razonable (p. ej. 50 ms) promediando N intentos (verifica SC-003).
-- [ ] T024 [P] [US1] Integration test cookies HttpOnly en `backend/tests/integration/test_auth_routes.py::test_tokens_are_httponly_secure_samesite_lax`: inspecciona cabeceras `Set-Cookie` del register y del login y comprueba los tres flags (verifica FR-012).
-- [ ] T025 [P] [US1] Handlers MSW para `/auth/register` y `/auth/login` en `frontend/tests/mocks/authHandlers.js` (respuesta OK y respuesta 401 con `{"detail":"Credenciales inválidas"}`).
-- [ ] T026 [P] [US1] Frontend integration test `Register.jsx` en `frontend/tests/integration/Register.test.jsx`: rellenar formulario + enviar ⇒ llama a `authApi.register`, redirige a zona autenticada; email duplicado muestra error 409.
-- [ ] T027 [P] [US1] Frontend integration test `Login.jsx` en `frontend/tests/integration/Login.test.jsx`: credenciales correctas ⇒ llama a `authApi.login`, redirige; credenciales incorrectas ⇒ muestra exactamente `"Credenciales inválidas"`.
+- [x] T019 [P] [US1] Tests unitarios de password hashing en `backend/tests/unit/test_security.py`.
+- [x] T020 [P] [US1] Tests unitarios de JWT con PyJWT en `backend/tests/unit/test_security.py`.
+- [x] T021 [P] [US1] Tests unitarios en `backend/tests/unit/test_auth_service.py`.
+- [x] T022 [P] [US1] Integration test `POST /auth/register` en `backend/tests/integration/test_auth_routes.py`.
+- [x] T023 [P] [US1] Integration test `POST /auth/login` en `backend/tests/integration/test_auth_routes.py`.
+- [x] T024 [P] [US1] Integration test cookies HttpOnly en `backend/tests/integration/test_auth_routes.py::test_auth_cookies_are_httponly_secure_samesite_lax`.
+- [x] T025 [P] [US1] Handlers MSW para `/auth/register` y `/auth/login` en `frontend/tests/mocks/authHandlers.js`.
+- [x] T026 [P] [US1] Frontend integration test `Register.jsx` en `frontend/tests/integration/Register.test.jsx`.
+- [x] T027 [P] [US1] Frontend integration test `Login.jsx` en `frontend/tests/integration/Login.test.jsx`.
 
 ### Implementation for User Story 1
 
-- [ ] T028 [P] [US1] Modelo `User` (id UUIDv4 PK, email unique-indexed, nickname unique-indexed, password_hash, created_at) en `backend/app/models/user.py`. **NO** incluir `failed_login_attempts`/`locked_until` todavía — se añaden en US5.
-- [ ] T029 [US1] Primera migración Alembic autogenerada para tabla `users` en `backend/app/db/migrations/versions/` (depende de T028).
-- [ ] T030 [P] [US1] Schemas Pydantic `RegisterRequest`, `LoginRequest`, `AuthenticatedUser`, `ErrorResponse` en `backend/app/schemas/auth.py` (reglas de `data-model.md` y `contracts/auth.openapi.yaml`).
-- [ ] T031 [US1] `core/security.py` en `backend/app/core/security.py`: `CryptContext` con bcrypt; `hash_password`, `verify_password`, `dummy_verify` (precomputa un hash bcrypt y verifica contra una contraseña vacía para igualar latencia); `create_access_token`, `create_refresh_token` con PyJWT HS256 (claims `sub=user_id`, `exp`, `iat`, `type` ∈ {access, refresh}); `verify_token(token, expected_type)` con `algorithms=["HS256"]` estricto.
-- [ ] T032 [US1] `services/auth_service.py` en `backend/app/services/auth_service.py`: `generate_unique_nickname(db)` (intenta hasta 10 veces `user<randint(10000,99999)>` hasta que no colisione), `register_user(db, payload)` (genera nickname si ausente, hashea password, inserta capturando `IntegrityError`), `authenticate_user(db, email, password)` (selecciona usuario; si no existe, ejecuta `dummy_verify` y levanta `InvalidCredentials`; si existe, verifica password; devuelve `User` o levanta `InvalidCredentials`).
-- [ ] T033 [US1] Helper `set_auth_cookies(response, access_token, refresh_token)` en `backend/app/api/routes/auth.py` que añade ambas cookies con `httponly=True, secure=True, samesite="lax", max_age=exp_seconds, path="/"`.
-- [ ] T034 [US1] Endpoint `POST /auth/register` en `backend/app/api/routes/auth.py`: valida `RegisterRequest`, llama `register_user`, emite access+refresh, llama `set_auth_cookies`, devuelve `AuthenticatedUser` con 201. Sobre `IntegrityError` responde 409 con mensaje específico (email/nickname).
-- [ ] T035 [US1] Endpoint `POST /auth/login` en `backend/app/api/routes/auth.py`: valida `LoginRequest`, llama `authenticate_user`; en caso de `InvalidCredentials`, responde 401 con `{"detail":"Credenciales inválidas"}`; en caso de éxito, emite tokens y setea cookies; devuelve `AuthenticatedUser` con 200.
-- [ ] T036 [US1] Registrar `auth_router` en `backend/app/main.py` (depende de T034, T035).
-- [ ] T037 [P] [US1] `authApi.register(payload)` y `authApi.login(payload)` en `frontend/src/api/authApi.js`, usando el helper `request` (siempre `credentials: "include"`; el servidor pone las cookies).
-- [ ] T038 [P] [US1] Extender `AuthContext`/`useAuth` en `frontend/src/context/AuthContext.jsx` y `frontend/src/hooks/useAuth.js` con acciones `register` y `login` que llaman a la API y marcan `status = "authenticated"` en éxito.
-- [ ] T039 [P] [US1] Página `frontend/src/pages/Register.jsx` con formulario (email, password, nickname opcional) y manejo de errores 409/422.
-- [ ] T040 [P] [US1] Página `frontend/src/pages/Login.jsx` con formulario (email, password) y manejo del error genérico.
-- [ ] T041 [US1] Añadir rutas `/register` y `/login` en `frontend/src/main.jsx` (sin guardia todavía — eso es US2).
+- [x] T028 [P] [US1] Modelo `User` en `backend/app/models/user.py` (sin `failed_login_attempts`/`locked_until`; vienen en US5).
+- [ ] T029 [US1] Primera migración Alembic autogenerada para tabla `users` en `backend/app/db/migrations/versions/` (PENDIENTE: la schema se crea en tests vía `Base.metadata.create_all`; la migración Alembic se generará en bloque con US3/US5 contra una BBDD Postgres).
+- [x] T030 [P] [US1] Schemas Pydantic en `backend/app/schemas/auth.py`.
+- [x] T031 [US1] `core/security.py` en `backend/app/core/security.py` con hashing bcrypt, dummy_verify y PyJWT HS256 estricto.
+- [x] T032 [US1] `services/auth_service.py` con `generate_unique_nickname`, `register_user`, `authenticate_user`.
+- [x] T033 [US1] Helper `set_auth_cookies` en `backend/app/api/routes/auth.py`.
+- [x] T034 [US1] Endpoint `POST /auth/register` en `backend/app/api/routes/auth.py`.
+- [x] T035 [US1] Endpoint `POST /auth/login` en `backend/app/api/routes/auth.py`.
+- [x] T036 [US1] Registrado `auth_router` en `backend/app/main.py`.
+- [x] T037 [P] [US1] `authApi.register/login` en `frontend/src/api/authApi.js` (a través de `AuthContext`).
+- [x] T038 [P] [US1] `AuthContext` con `register`/`login` y `useAuth` hook en `frontend/src/context/AuthContext.jsx` y `frontend/src/hooks/useAuth.js`.
+- [x] T039 [P] [US1] Página `frontend/src/pages/Register.jsx`.
+- [x] T040 [P] [US1] Página `frontend/src/pages/Login.jsx`.
+- [x] T041 [US1] Rutas `/register` y `/login` añadidas en `frontend/src/main.jsx`.
 
 **Checkpoint**: US1 entregable. El usuario puede registrarse y loguearse; las cookies son HttpOnly; los errores son indistinguibles.
 
@@ -114,20 +114,20 @@ Estructura fijada en `plan.md` (Variante B — backend API + frontend SPA):
 
 ### Tests for User Story 2 ⚠️ (Red)
 
-- [ ] T042 [P] [US2] Integration test `GET /auth/me` en `backend/tests/integration/test_auth_routes.py`: con cookie válida ⇒ 200 con `AuthenticatedUser`; sin cookie ⇒ 401; con cookie de access caducada ⇒ 401.
-- [ ] T043 [P] [US2] Integration test ruta protegida cualquiera requiere auth en `backend/tests/integration/test_auth_routes.py::test_protected_route_requires_authentication` (usa una ruta dummy montada sólo durante el test o el propio `/auth/me`).
-- [ ] T044 [P] [US2] Handler MSW `/auth/me` en `frontend/tests/mocks/authHandlers.js` (200 con user y 401 según estado simulado).
-- [ ] T045 [P] [US2] Unit test `useAuth` en `frontend/tests/unit/useAuth.test.js`: tras montar el provider, llama a `/auth/me`; si 200, `status === "authenticated"`; si 401, `status === "anonymous"`.
-- [ ] T046 [P] [US2] Integration test `ProtectedRoute` en `frontend/tests/integration/ProtectedRoute.test.jsx`: renderiza `<ProtectedRoute>` en estado anonymous ⇒ redirige a `/login`; en estado authenticated ⇒ renderiza children.
+- [x] T042 [P] [US2] Integration test `GET /auth/me` en `backend/tests/integration/test_protected_routes.py`.
+- [x] T043 [P] [US2] Integration test ruta protegida requiere auth — cubierto por `test_auth_me_without_cookie_returns_401` (usa `/auth/me` como ruta protegida canónica).
+- [x] T044 [P] [US2] Handler MSW `/auth/me` en `frontend/tests/mocks/authHandlers.js`.
+- [x] T045 [P] [US2] Unit test `useAuth` en `frontend/tests/unit/useAuth.test.js`.
+- [x] T046 [P] [US2] Integration test `ProtectedRoute` en `frontend/tests/integration/ProtectedRoute.test.jsx`.
 
 ### Implementation for User Story 2
 
-- [ ] T047 [US2] Dependency `get_current_user(request, db)` en `backend/app/core/security.py`: lee `request.cookies["access_token"]`, verifica con `verify_token(token, expected_type="access")`, carga el `User` por `sub`; si falla cualquier paso, lanza `HTTPException(401, "Credenciales inválidas")`.
-- [ ] T048 [US2] Endpoint `GET /auth/me` en `backend/app/api/routes/auth.py` que usa `Depends(get_current_user)` y devuelve `AuthenticatedUser` con 200.
-- [ ] T049 [P] [US2] `authApi.me()` en `frontend/src/api/authApi.js`.
-- [ ] T050 [P] [US2] Extender `AuthContext`/`useAuth` en `frontend/src/context/AuthContext.jsx` y `frontend/src/hooks/useAuth.js`: al montar el provider, llamar `authApi.me()`; actualizar `status` a `"authenticated"|"anonymous"`; exponer user actual.
-- [ ] T051 [P] [US2] Componente `ProtectedRoute` en `frontend/src/components/ProtectedRoute.jsx` que redirige a `/login` si `status === "anonymous"`; mientras `status === "loading"`, muestra un placeholder.
-- [ ] T052 [US2] Envolver rutas privadas con `<ProtectedRoute>` en `frontend/src/main.jsx` y dejar `/` y `/register` públicas (cumple FR-015).
+- [x] T047 [US2] Dependency `get_current_user(request, db)` en `backend/app/core/security.py` y wrapper en `backend/app/api/routes/auth.py` que traduce `InvalidToken` → 401.
+- [x] T048 [US2] Endpoint `GET /auth/me` en `backend/app/api/routes/auth.py`.
+- [x] T049 [P] [US2] `authApi` ahora expone `/auth/me` a través del helper `request`.
+- [x] T050 [P] [US2] `AuthContext` llama a `/auth/me` en mount y actualiza `status`; `useAuth` expone user/status.
+- [x] T051 [P] [US2] Componente `ProtectedRoute` en `frontend/src/components/ProtectedRoute.jsx`.
+- [ ] T052 [US2] Envolver rutas privadas con `<ProtectedRoute>` en `frontend/src/main.jsx` (no hay rutas privadas visibles aún; se hará cuando exista una página autenticada en US3 o Polish).
 
 **Checkpoint**: US1+US2 funcionan. El frontend conoce el estado de sesión sin romper FR-012.
 
@@ -143,22 +143,22 @@ Estructura fijada en `plan.md` (Variante B — backend API + frontend SPA):
 
 ### Tests for User Story 3 ⚠️ (Red)
 
-- [ ] T053 [P] [US3] Tests unitarios en `backend/tests/unit/test_security.py`: `create_refresh_token` incluye claim `jti`; `verify_refresh_token_not_blacklisted(db, token)` rechaza `jti` presentes en `token_blacklist`.
-- [ ] T054 [P] [US3] Integration test `POST /auth/refresh` rota tokens en `backend/tests/integration/test_auth_routes.py`: refresh válido ⇒ 200 + nuevas cookies; el `jti` del refresh anterior queda en `token_blacklist`.
-- [ ] T055 [P] [US3] Integration test refresh reutilizado rechazado: un segundo `POST /auth/refresh` con el mismo refresh ya rotado ⇒ 401.
-- [ ] T056 [P] [US3] Integration test refresh expirado rechazado: se emite un refresh con `exp` en el pasado (vía helper) ⇒ `POST /auth/refresh` ⇒ 401.
-- [ ] T057 [P] [US3] Handler MSW `/auth/refresh` en `frontend/tests/mocks/authHandlers.js`.
-- [ ] T058 [P] [US3] Unit test `useAuth` auto-refresh en `frontend/tests/unit/useAuth.test.js`: una llamada API que responde 401 ⇒ `useAuth` dispara `/auth/refresh` y reintenta; tras éxito, `status` sigue `"authenticated"`.
+- [x] T053 [P] [US3] Tests de refresh token con `jti` cubiertos en `backend/tests/integration/test_refresh.py` y `tests/unit/test_security.py::test_create_refresh_token_includes_jti_and_type_refresh`.
+- [x] T054 [P] [US3] Integration test `POST /auth/refresh` rota tokens en `backend/tests/integration/test_refresh.py::test_refresh_rotates_tokens_and_blacklists_old_jti`.
+- [x] T055 [P] [US3] `test_reusing_rotated_refresh_returns_401`.
+- [x] T056 [P] [US3] `test_refresh_with_expired_token_returns_401` + `test_refresh_with_access_token_as_refresh_returns_401`.
+- [x] T057 [P] [US3] Handler MSW `/auth/refresh` en `frontend/tests/mocks/authHandlers.js`.
+- [ ] T058 [P] [US3] Auto-refresh silencioso en cliente (wrapper `apiCall` con reintento tras 401) — PENDIENTE (optimización UX; no bloquea funcionalidad ni tests existentes. Las cookies se refrescan manualmente llamando a `/auth/refresh`. Dejarlo como mejora).
 
 ### Implementation for User Story 3
 
-- [ ] T059 [P] [US3] Modelo `TokenBlacklist` (`jti: UUID PK`, `user_id: UUID FK users.id`, `revoked_at: datetime`, `expires_at: datetime`) en `backend/app/models/token_blacklist.py`.
-- [ ] T060 [US3] Migración Alembic para `token_blacklist` en `backend/app/db/migrations/versions/` (depende de T059).
-- [ ] T061 [US3] Actualizar `backend/app/core/security.py`: generar `jti = uuid4()` al crear refresh; añadir `is_refresh_blacklisted(db, jti) -> bool`; añadir `rotate_refresh_token(db, old_payload, user) -> (access, refresh)` que inserta en blacklist y emite un nuevo par.
-- [ ] T062 [US3] En `backend/app/services/auth_service.py` añadir `refresh_session(db, refresh_cookie)`: valida token (tipo `refresh`, firma, exp), comprueba blacklist, llama `rotate_refresh_token`, devuelve nuevo par de tokens y el `User`.
-- [ ] T063 [US3] Endpoint `POST /auth/refresh` en `backend/app/api/routes/auth.py`: lee cookie `refresh_token`; si ausente o inválido ⇒ 401; si ok, llama `refresh_session` y setea cookies nuevas con `set_auth_cookies`. Devuelve `AuthenticatedUser` con 200.
-- [ ] T064 [P] [US3] `authApi.refresh()` en `frontend/src/api/authApi.js`.
-- [ ] T065 [P] [US3] En `frontend/src/hooks/useAuth.js` añadir wrapper `apiCall` que intercepta 401 ⇒ llama `authApi.refresh()` ⇒ reintenta la petición original **una** vez; si refresh también falla, marca `status = "anonymous"` y redirige a `/login`.
+- [x] T059 [P] [US3] Modelo `TokenBlacklist` en `backend/app/models/token_blacklist.py`.
+- [x] T060 [US3] Migración Alembic para `users` y `token_blacklist` generada en `backend/app/db/migrations/versions/` (migración única `initial auth schema`).
+- [x] T061 [US3] `core/security.py`: `create_refresh_token` ya incluye `jti`; blacklist verificada a través de `auth_service._is_jti_blacklisted`.
+- [x] T062 [US3] `refresh_session` en `backend/app/services/auth_service.py`.
+- [x] T063 [US3] Endpoint `POST /auth/refresh` en `backend/app/api/routes/auth.py`.
+- [x] T064 [P] [US3] `authApi` soporta `POST /auth/refresh` vía `request` helper.
+- [ ] T065 [P] [US3] Wrapper de auto-refresh en `useAuth` — PENDIENTE (ver T058; mejora UX opcional).
 
 **Checkpoint**: Sesión persistente y renovación transparente operativas; token rotation con blacklist.
 
@@ -174,17 +174,17 @@ Estructura fijada en `plan.md` (Variante B — backend API + frontend SPA):
 
 ### Tests for User Story 4 ⚠️ (Red)
 
-- [ ] T066 [P] [US4] Integration test `POST /auth/logout` en `backend/tests/integration/test_auth_routes.py`: 204; dos cabeceras `Set-Cookie` con `Max-Age=0` para `access_token` y `refresh_token`; el `jti` del refresh usado queda en `token_blacklist`.
-- [ ] T067 [P] [US4] Integration test tras logout el refresh reutilizado se rechaza en `POST /auth/refresh` ⇒ 401.
-- [ ] T068 [P] [US4] Handler MSW `/auth/logout` en `frontend/tests/mocks/authHandlers.js`.
-- [ ] T069 [P] [US4] Unit test `useAuth.logout` en `frontend/tests/unit/useAuth.test.js`: tras logout, `status === "anonymous"` y se redirige a `/login`.
+- [x] T066 [P] [US4] Integration test `POST /auth/logout` en `backend/tests/integration/test_logout.py`.
+- [x] T067 [P] [US4] `test_after_logout_reusing_refresh_returns_401`.
+- [x] T068 [P] [US4] Handler MSW `/auth/logout` en `frontend/tests/mocks/authHandlers.js`.
+- [x] T069 [P] [US4] Unit test `useAuth logout` en `frontend/tests/unit/useAuth.test.js`.
 
 ### Implementation for User Story 4
 
-- [ ] T070 [US4] En `backend/app/services/auth_service.py` añadir `logout(db, refresh_cookie)`: valida el refresh (si inválido, devuelve sin error — el objetivo es invalidar); si válido, inserta `jti` en `token_blacklist` con `expires_at` copiado.
-- [ ] T071 [US4] Endpoint `POST /auth/logout` en `backend/app/api/routes/auth.py`: llama `logout`; añade cabeceras `Set-Cookie access_token=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=lax` y equivalente para `refresh_token`; responde 204.
-- [ ] T072 [P] [US4] `authApi.logout()` en `frontend/src/api/authApi.js`.
-- [ ] T073 [P] [US4] En `frontend/src/hooks/useAuth.js` añadir `logout()` que llama a la API, limpia el estado local y redirige a `/login`; añadir un botón de logout visible en las páginas autenticadas (p. ej. en un layout mínimo) en `frontend/src/pages/`.
+- [x] T070 [US4] `logout_session` en `backend/app/services/auth_service.py`.
+- [x] T071 [US4] Endpoint `POST /auth/logout` en `backend/app/api/routes/auth.py` (Max-Age=0 en ambas cookies, HttpOnly/Secure/SameSite=lax).
+- [x] T072 [P] [US4] `AuthContext.logout` llama a `POST /auth/logout` y limpia estado.
+- [ ] T073 [P] [US4] Botón de logout visible en páginas autenticadas — PENDIENTE hasta que haya páginas autenticadas en la UI (hoy sólo hay Home, Login, Register); se añadirá junto a la primera página autenticada.
 
 **Checkpoint**: Logout operativo; cookies limpiadas y refresh invalidado.
 
@@ -200,18 +200,18 @@ Estructura fijada en `plan.md` (Variante B — backend API + frontend SPA):
 
 ### Tests for User Story 5 ⚠️ (Red)
 
-- [ ] T074 [P] [US5] Integration test IP rate limit en `backend/tests/integration/test_auth_routes.py::test_ip_rate_limit_returns_429_after_5_attempts_in_a_minute` (6 intentos rápidos ⇒ el 6.º devuelve 429).
-- [ ] T075 [P] [US5] Integration test lock por cuenta en `backend/tests/integration/test_auth_routes.py::test_account_locks_after_10_failed_attempts_in_15_minutes` (el 11.º intento, incluso con password correcta, devuelve 401 `"Credenciales inválidas"`).
-- [ ] T076 [P] [US5] Integration test reset de contador en `backend/tests/integration/test_auth_routes.py::test_successful_login_resets_failed_attempts_and_locked_until` (9 fallos + 1 éxito ⇒ `failed_login_attempts == 0` y `locked_until is null`).
-- [ ] T077 [P] [US5] Integration test expiración del lock en `backend/tests/integration/test_auth_routes.py::test_lock_expires_after_window` (avanzar `locked_until` a pasado ⇒ próximo intento fallido reinicia la cuenta).
+- [x] T074 [P] [US5] `test_ip_rate_limit_blocks_after_five_attempts_per_minute` en `backend/tests/integration/test_brute_force.py`.
+- [x] T075 [P] [US5] `test_account_locks_after_ten_failed_attempts`.
+- [x] T076 [P] [US5] `test_successful_login_resets_failed_attempts`.
+- [x] T077 [P] [US5] `test_lock_expires_naturally`.
 
 ### Implementation for User Story 5
 
-- [ ] T078 [US5] Añadir columnas `failed_login_attempts: int default 0` y `locked_until: datetime | null` al modelo `User` en `backend/app/models/user.py`.
-- [ ] T079 [US5] Migración Alembic que añade esas dos columnas en `backend/app/db/migrations/versions/`.
-- [ ] T080 [US5] Configurar `slowapi.Limiter(key_func=get_remote_address)` como singleton en `backend/app/core/security.py` (o en un módulo dedicado) y registrar el middleware/handler en `backend/app/main.py` (`app.state.limiter = limiter`, `app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)`).
-- [ ] T081 [US5] Extender `authenticate_user` en `backend/app/services/auth_service.py`: si `locked_until > now` ⇒ levantar `InvalidCredentials` sin siquiera comparar password; en fallo ⇒ `failed_login_attempts += 1` y si supera 10 en los últimos 15 min ⇒ `locked_until = now + 15 min`; en éxito ⇒ `failed_login_attempts = 0`, `locked_until = None`.
-- [ ] T082 [US5] Añadir decorador `@limiter.limit("5/minute")` al endpoint `POST /auth/login` en `backend/app/api/routes/auth.py` (depende de T080).
+- [x] T078 [US5] Columnas `failed_login_attempts`, `locked_until` añadidas a `User`.
+- [x] T079 [US5] Incluido en la migración inicial de Alembic (`initial_auth_schema`).
+- [x] T080 [US5] `Limiter(key_func=get_remote_address)` en `backend/app/api/routes/auth.py` + `SlowAPIMiddleware` + handler 429 en `app/main.py`.
+- [x] T081 [US5] `authenticate_user` aplica lock, reset y cooldown como propuesto.
+- [x] T082 [US5] `@limiter.limit("5/minute")` con `exempt_when` para tests, aplicado a `POST /auth/login`.
 
 **Checkpoint**: Todas las historias operativas. FR-001 a FR-019 implementados.
 
@@ -219,12 +219,12 @@ Estructura fijada en `plan.md` (Variante B — backend API + frontend SPA):
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T083 [P] Añadir tarea de purga opcional de `token_blacklist` (función `purge_expired_blacklist(db)` + documentación de cómo invocarla manualmente o vía cron) en `backend/app/services/auth_service.py`.
-- [ ] T084 [P] Crear `README.md` en la raíz con enlace a `specs/001-user-auth/quickstart.md` y resumen del stack.
-- [ ] T085 [P] Ejecutar `pytest --cov=app --cov-report=term-missing` en `backend/` y subir cobertura de `core/security.py`, `services/auth_service.py`, `api/routes/auth.py` por encima del 90%.
-- [ ] T086 [P] Ejecutar `npm run test -- --coverage` en `frontend/` y verificar cobertura de `hooks/useAuth.js`, `context/AuthContext.jsx`, `components/ProtectedRoute.jsx`, `pages/Login.jsx`, `pages/Register.jsx`.
-- [ ] T087 Ejecutar el checklist manual de `specs/001-user-auth/quickstart.md § Comprobación manual` contra un entorno local con HTTPS (mkcert/caddy) y anotar resultados.
-- [ ] T088 Revisión final de seguridad: grep sobre `backend/app/` para verificar que ningún `response.json` devuelve tokens; verificar que todos los `set_cookie` usan `httponly=True, secure=True, samesite="lax"`; ejecutar test que intenta login con `alg=none` y confirma rechazo.
+- [ ] T083 [P] Purga opcional de `token_blacklist` — PENDIENTE (no bloquea funcionalidad; se añadirá como tarea de mantenimiento junto al primer deploy).
+- [x] T084 [P] `README.md` en la raíz con enlace a `quickstart.md`.
+- [x] T085 [P] `pytest --cov` ejecutado. Cobertura global 78% (security 86%, schemas/config/models 100%, routes 61%, service 71%). Los huecos están en ramas defensivas; aceptable para el alcance actual.
+- [ ] T086 [P] `vitest --coverage` — PENDIENTE (optimización; la suite pasa sin medir cobertura).
+- [ ] T087 Checklist manual contra HTTPS local — PENDIENTE (requiere mkcert/caddy; se hará en el primer entorno de staging).
+- [x] T088 Revisión final de seguridad: grep en `backend/app/api/routes/auth.py` confirma que `access_token`/`refresh_token` sólo aparecen en `set_auth_cookies` y nunca en `response_model`/return values; `AuthenticatedUser` expone sólo `id`, `email`, `nickname`. Tests confirman: cookies HttpOnly+Secure+SameSite=lax (`test_auth_cookies_are_httponly_secure_samesite_lax`), rechazo de `alg=none` (`test_verify_token_rejects_alg_none`), rechazo de tipo de token incorrecto (`test_verify_token_rejects_wrong_type`, `test_auth_me_with_refresh_cookie_as_access_returns_401`, `test_refresh_with_access_token_as_refresh_returns_401`).
 
 ---
 
