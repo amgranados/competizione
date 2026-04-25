@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     FRONTEND_ORIGIN: AnyHttpUrl
     COOKIES_SECURE: bool = True
+    RIOT_API_KEY: str | None = None
 
 
 def get_settings() -> Settings:

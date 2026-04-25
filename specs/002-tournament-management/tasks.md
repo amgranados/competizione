@@ -30,9 +30,9 @@ Estructura fijada en [plan.md § Project Structure](./plan.md) (Variante B — b
 
 **Purpose**: Preparar subdirectorios nuevos y extender la configuración existente del repo 001 sin introducir dependencias runtime.
 
-- [ ] T001 Crear subdirectorios nuevos vacíos: `backend/app/services/riot_api/` (con `__init__.py` vacío), y asegurar que existen `backend/app/models/`, `backend/app/schemas/`, `backend/app/services/`, `backend/app/api/routes/`, `backend/tests/unit/`, `backend/tests/integration/`, `frontend/src/api/`, `frontend/src/context/`, `frontend/src/hooks/`, `frontend/src/components/`, `frontend/src/pages/`, `frontend/tests/mocks/`, `frontend/tests/unit/`, `frontend/tests/integration/` (ya creados en 001; añadir `.gitkeep` donde haga falta).
-- [ ] T002 [P] Añadir `RIOT_API_KEY=` (opcional, comentada) a `backend/.env.example` con comentario explicando que su ausencia fuerza `MockRiotAPIClient` y deja log explícito ([quickstart.md § Env vars](./quickstart.md)).
-- [ ] T003 [P] Extender `Settings` en `backend/app/core/config.py` con `RIOT_API_KEY: str | None = None` (sin cambios en el resto de campos de 001).
+- [x] T001 Crear subdirectorios nuevos vacíos: `backend/app/services/riot_api/` (con `__init__.py` vacío), y asegurar que existen `backend/app/models/`, `backend/app/schemas/`, `backend/app/services/`, `backend/app/api/routes/`, `backend/tests/unit/`, `backend/tests/integration/`, `frontend/src/api/`, `frontend/src/context/`, `frontend/src/hooks/`, `frontend/src/components/`, `frontend/src/pages/`, `frontend/tests/mocks/`, `frontend/tests/unit/`, `frontend/tests/integration/` (ya creados en 001; añadir `.gitkeep` donde haga falta).
+- [x] T002 [P] Añadir `RIOT_API_KEY=` (opcional, comentada) a `backend/.env.example` con comentario explicando que su ausencia fuerza `MockRiotAPIClient` y deja log explícito ([quickstart.md § Env vars](./quickstart.md)).
+- [x] T003 [P] Extender `Settings` en `backend/app/core/config.py` con `RIOT_API_KEY: str | None = None` (sin cambios en el resto de campos de 001).
 
 **Checkpoint**: Entorno listo. Ningún paquete nuevo instalado; `respx` queda diferida (ver [research.md § Dependencias diferidas](./research.md)).
 
@@ -46,15 +46,15 @@ Estructura fijada en [plan.md § Project Structure](./plan.md) (Variante B — b
 
 ### Tests (Red — deben fallar antes de implementar)
 
-- [ ] T004 [P] Test unitario `backend/tests/unit/test_riot_api_client.py::test_mock_client_returns_configured_match_result` en `backend/tests/unit/test_riot_api_client.py`: el `MockRiotAPIClient` devuelve los datos configurados por test fixture para `get_match_by_tournament_code()` y `validate_riot_id()`.
-- [ ] T005 [P] Test unitario `backend/tests/unit/test_riot_api_client.py::test_factory_returns_mock_when_api_key_missing_and_logs`: el factory devuelve `MockRiotAPIClient` cuando `settings.RIOT_API_KEY is None` y emite un log `INFO` con la cadena `Using MockRiotAPIClient: RIOT_API_KEY not set` (usar `caplog`).
-- [ ] T006 [P] Test unitario `frontend/tests/unit/usePolling.test.js`: con fake timers, `usePolling(fetcher, 10000)` llama a `fetcher` al montar, luego cada 10 s exactos; al desmontar limpia el intervalo (no se produce más invocaciones).
+- [x] T004 [P] Test unitario `backend/tests/unit/test_riot_api_client.py::test_mock_client_returns_configured_match_result` en `backend/tests/unit/test_riot_api_client.py`: el `MockRiotAPIClient` devuelve los datos configurados por test fixture para `get_match_by_tournament_code()` y `validate_riot_id()`.
+- [x] T005 [P] Test unitario `backend/tests/unit/test_riot_api_client.py::test_factory_returns_mock_when_api_key_missing_and_logs`: el factory devuelve `MockRiotAPIClient` cuando `settings.RIOT_API_KEY is None` y emite un log `INFO` con la cadena `Using MockRiotAPIClient: RIOT_API_KEY not set` (usar `caplog`).
+- [x] T006 [P] Test unitario `frontend/tests/unit/usePolling.test.js`: con fake timers, `usePolling(fetcher, 10000)` llama a `fetcher` al montar, luego cada 10 s exactos; al desmontar limpia el intervalo (no se produce más invocaciones).
 
 ### Implementation (Green)
 
-- [ ] T007 [P] Implementar `RiotAPIClient` Protocol en `backend/app/services/riot_api/client.py` con los dos métodos definidos en el stack (`validate_riot_id(game_name, tag_line) -> bool`, `get_match_by_tournament_code(tournament_code) -> MatchResult | None`) y un dataclass `MatchResult` mínimo (campos suficientes para la validación FR-036: `participants: list[ParticipantInfo]`, `duration_seconds: int`, `game_mode: str`, `start_timestamp: datetime`). Exportar también un `get_riot_api_client(settings) -> RiotAPIClient` que devuelva `MockRiotAPIClient()` cuando `settings.RIOT_API_KEY is None` (log INFO con la cadena exacta) y `HttpRiotAPIClient(settings.RIOT_API_KEY)` en caso contrario. El símbolo `HttpRiotAPIClient` se importa **sólo** dentro de la rama; no se implementa hasta la iteración futura (DEFER documentado con `# TODO iteración futura`).
-- [ ] T008 [P] Implementar `MockRiotAPIClient` en `backend/app/services/riot_api/mock_client.py` con atributos configurables (`configured_match_results: dict[str, MatchResult]`, `configured_riot_ids: set[tuple[str, str]]`) y los dos métodos del Protocol devolviendo esos datos. Sin dependencias externas.
-- [ ] T009 [P] Implementar hook `usePolling(fetcher, intervalMs = 10000)` en `frontend/src/hooks/usePolling.js`: `useEffect` monta `setInterval`, al desmontar `clearInterval`; expone `{ data, error, refresh }` donde `refresh` permite forzar un fetch inmediato (usado por las vistas tras acciones locales — ver [quickstart.md § Frontend patterns](./quickstart.md)).
+- [x] T007 [P] Implementar `RiotAPIClient` Protocol en `backend/app/services/riot_api/client.py` con los dos métodos definidos en el stack (`validate_riot_id(game_name, tag_line) -> bool`, `get_match_by_tournament_code(tournament_code) -> MatchResult | None`) y un dataclass `MatchResult` mínimo (campos suficientes para la validación FR-036: `participants: list[ParticipantInfo]`, `duration_seconds: int`, `game_mode: str`, `start_timestamp: datetime`). Exportar también un `get_riot_api_client(settings) -> RiotAPIClient` que devuelva `MockRiotAPIClient()` cuando `settings.RIOT_API_KEY is None` (log INFO con la cadena exacta) y `HttpRiotAPIClient(settings.RIOT_API_KEY)` en caso contrario. El símbolo `HttpRiotAPIClient` se importa **sólo** dentro de la rama; no se implementa hasta la iteración futura (DEFER documentado con `# TODO iteración futura`).
+- [x] T008 [P] Implementar `MockRiotAPIClient` en `backend/app/services/riot_api/mock_client.py` con atributos configurables (`configured_match_results: dict[str, MatchResult]`, `configured_riot_ids: set[tuple[str, str]]`) y los dos métodos del Protocol devolviendo esos datos. Sin dependencias externas.
+- [x] T009 [P] Implementar hook `usePolling(fetcher, intervalMs = 10000)` en `frontend/src/hooks/usePolling.js`: `useEffect` monta `setInterval`, al desmontar `clearInterval`; expone `{ data, error, refresh }` donde `refresh` permite forzar un fetch inmediato (usado por las vistas tras acciones locales — ver [quickstart.md § Frontend patterns](./quickstart.md)).
 
 **Checkpoint**: Cliente Riot preparado (no cableado aún a ningún endpoint) y polling genérico disponible. User stories pueden empezar.
 
@@ -72,62 +72,62 @@ Estructura fijada en [plan.md § Project Structure](./plan.md) (Variante B — b
 
 ### Tests unitarios de algoritmos (Red) — en paralelo
 
-- [ ] T010 [P] [US1] Test `test_round_robin_even_pairs_everyone_once` en `backend/tests/unit/test_calendar_service.py`: con N=4 (`p1,p2,p3,p4`), el resultado contiene 6 matches no-bye, cada par `{pi, pj}` aparece exactamente una vez, y hay 3 rondas con 2 matches cada una.
-- [ ] T011 [P] [US1] Test `test_round_robin_odd_every_player_rests_exactly_once` en `backend/tests/unit/test_calendar_service.py`: con N=5, hay 5 rondas; cada real tiene exactamente un match con `is_bye=True` (propiedad fairness-bye, SC-006).
-- [ ] T012 [P] [US1] Test `test_round_robin_is_deterministic` en `backend/tests/unit/test_calendar_service.py`: misma lista de participantes en el mismo orden produce exactamente el mismo calendario en dos invocaciones consecutivas.
-- [ ] T013 [P] [US1] Test `test_single_elim_with_6_participants_assigns_2_byes_to_most_recent` en `backend/tests/unit/test_calendar_service.py`: con 6 participantes con `accepted_at` creciente (p1 el primero, p6 el último), la primera ronda tiene 2 matches reales entre `p1–p2`/`p3–p4` (orden estable por inscripción ASC) y 2 byes sobre `p5` y `p6` (SC-007).
-- [ ] T014 [P] [US1] Test `test_single_elim_no_next_round_generated_on_creation` en `backend/tests/unit/test_calendar_service.py`: tras `generate_single_elim_first_round`, el torneo sólo tiene matches en `round_number = 1` (FR-027).
-- [ ] T015 [P] [US1] Test `test_round_robin_bye_has_no_tournament_code` en `backend/tests/unit/test_calendar_service.py`: cualquier match con `is_bye=True` tiene `tournament_code is None` y `code_created_at is None` (FR-048 / prompt).
-- [ ] T016 [P] [US1] Test `test_each_non_bye_match_gets_unique_tournament_code` en `backend/tests/unit/test_calendar_service.py`: todos los `tournament_code` generados son UUIDv4 válidos y distintos entre sí para el mismo torneo (FR-031).
+- [x] T010 [P] [US1] Test `test_round_robin_even_pairs_everyone_once` en `backend/tests/unit/test_calendar_service.py`: con N=4 (`p1,p2,p3,p4`), el resultado contiene 6 matches no-bye, cada par `{pi, pj}` aparece exactamente una vez, y hay 3 rondas con 2 matches cada una.
+- [x] T011 [P] [US1] Test `test_round_robin_odd_every_player_rests_exactly_once` en `backend/tests/unit/test_calendar_service.py`: con N=5, hay 5 rondas; cada real tiene exactamente un match con `is_bye=True` (propiedad fairness-bye, SC-006).
+- [x] T012 [P] [US1] Test `test_round_robin_is_deterministic` en `backend/tests/unit/test_calendar_service.py`: misma lista de participantes en el mismo orden produce exactamente el mismo calendario en dos invocaciones consecutivas.
+- [x] T013 [P] [US1] Test `test_single_elim_with_6_participants_assigns_2_byes_to_most_recent` en `backend/tests/unit/test_calendar_service.py`: con 6 participantes con `accepted_at` creciente (p1 el primero, p6 el último), la primera ronda tiene 2 matches reales entre `p1–p2`/`p3–p4` (orden estable por inscripción ASC) y 2 byes sobre `p5` y `p6` (SC-007).
+- [x] T014 [P] [US1] Test `test_single_elim_no_next_round_generated_on_creation` en `backend/tests/unit/test_calendar_service.py`: tras `generate_single_elim_first_round`, el torneo sólo tiene matches en `round_number = 1` (FR-027).
+- [x] T015 [P] [US1] Test `test_round_robin_bye_has_no_tournament_code` en `backend/tests/unit/test_calendar_service.py`: cualquier match con `is_bye=True` tiene `tournament_code is None` y `code_created_at is None` (FR-048 / prompt).
+- [x] T016 [P] [US1] Test `test_each_non_bye_match_gets_unique_tournament_code` en `backend/tests/unit/test_calendar_service.py`: todos los `tournament_code` generados son UUIDv4 válidos y distintos entre sí para el mismo torneo (FR-031).
 
 ### Tests integración backend (Red) — en paralelo
 
-- [ ] T017 [P] [US1] Test `test_create_tournament_as_draft` en `backend/tests/integration/test_tournament_routes.py`: `POST /tournaments` con payload válido → 201, body con `state="draft"`, `organizer_id=<user autenticado>`, `id` UUIDv4.
-- [ ] T018 [P] [US1] Test `test_create_tournament_rejects_invalid_format` en `backend/tests/integration/test_tournament_routes.py`: `format="random"` → 422.
-- [ ] T019 [P] [US1] Test `test_open_registration_draft_to_open` en `backend/tests/integration/test_tournament_routes.py`: `POST /tournaments/{id}/open` sobre torneo en `draft` por el organizador → 200, `state="open"`. Rechazo 409 si el estado no es draft.
-- [ ] T020 [P] [US1] Test `test_invite_user_creates_pending_invitation_with_48h_expiry` en `backend/tests/integration/test_tournament_routes.py`: `POST /tournaments/{id}/invitations` → 201; `expires_at` ≈ `created_at + 48h` (tolerancia ±5 s); notificación `invitation_received` creada para el invitado.
-- [ ] T021 [P] [US1] Test `test_cannot_invite_same_user_twice_while_pending` en `backend/tests/integration/test_tournament_routes.py`: segunda invitación al mismo usuario en estado pending → 409.
-- [ ] T022 [P] [US1] Test `test_accept_invitation_creates_participant` en `backend/tests/integration/test_tournament_routes.py`: `POST /invitations/{iid}/accept` con el invitado autenticado → 200, `state="accepted"`, existe `Participant(tournament, user, accepted_at=now)`. Notificación `invitation_accepted` para el organizador.
-- [ ] T023 [P] [US1] Test `test_reject_invitation` en `backend/tests/integration/test_tournament_routes.py`: → 200, `state="rejected"`, notificación `invitation_rejected` al organizador.
-- [ ] T024 [P] [US1] Test `test_cancel_pending_invitation_by_organizer` en `backend/tests/integration/test_tournament_routes.py`: → 200, `state="cancelled"`, notificación `invitation_cancelled` al invitado.
-- [ ] T025 [P] [US1] Test `test_accept_expired_invitation_returns_410` en `backend/tests/integration/test_tournament_routes.py`: fijar `expires_at` en el pasado con helper de test → 410 y la invitación queda como `expired` en BBDD (check-on-read).
-- [ ] T026 [P] [US1] Test `test_remove_participant_while_draft` en `backend/tests/integration/test_tournament_routes.py`: `DELETE /tournaments/{id}/participants/{pid}` por el organizador sobre torneo en draft → 204; el participante desaparece del listado.
-- [ ] T027 [P] [US1] Test `test_remove_participant_after_start_rejected_409` en `backend/tests/integration/test_tournament_routes.py`.
-- [ ] T028 [P] [US1] Test `test_start_tournament_rejects_below_minimum_participants` en `backend/tests/integration/test_tournament_routes.py`: con 1 participante → 409 (SC-009).
-- [ ] T029 [P] [US1] Test `test_start_round_robin_generates_all_matches_and_codes` en `backend/tests/integration/test_tournament_routes.py`: con 4 participantes, tras `POST /tournaments/{id}/start` → 200, `state="active"`; `GET /tournaments/{id}/schedule` devuelve 3 rondas × 2 matches, todos con `tournament_code` no nulo y únicos.
-- [ ] T030 [P] [US1] Test `test_start_single_elim_generates_first_round_with_byes` en `backend/tests/integration/test_tournament_routes.py`: con 6 participantes single-elim → primera ronda con 2 matches reales + 2 byes; los byes tienen `tournament_code is None`.
-- [ ] T031 [P] [US1] Test `test_start_locks_format_change` en `backend/tests/integration/test_tournament_routes.py`: tras iniciar, `PATCH /tournaments/{id}` con nuevo formato → 409 (FR-019).
-- [ ] T032 [P] [US1] Test `test_tournament_detail_hidden_for_outsider_returns_404` en `backend/tests/integration/test_tournament_routes.py`: usuario no organizador, no participante y sin invitación → 404 (patrón anti-enumeración).
-- [ ] T033 [P] [US1] Test `test_list_notifications_for_current_user` en `backend/tests/integration/test_notifications_routes.py`: `GET /notifications` devuelve sólo las del usuario autenticado, ordenadas por `created_at DESC`; filtro `?unread=true` excluye las leídas.
-- [ ] T034 [P] [US1] Test `test_mark_notification_read` en `backend/tests/integration/test_notifications_routes.py`: `PATCH /notifications/{id}/read` → 200, `read_at` fijado.
-- [ ] T035 [P] [US1] Test `test_mark_other_users_notification_returns_404` en `backend/tests/integration/test_notifications_routes.py`.
+- [x] T017 [P] [US1] Test `test_create_tournament_as_draft` en `backend/tests/integration/test_tournament_routes.py`: `POST /tournaments` con payload válido → 201, body con `state="draft"`, `organizer_id=<user autenticado>`, `id` UUIDv4.
+- [x] T018 [P] [US1] Test `test_create_tournament_rejects_invalid_format` en `backend/tests/integration/test_tournament_routes.py`: `format="random"` → 422.
+- [x] T019 [P] [US1] Test `test_open_registration_draft_to_open` en `backend/tests/integration/test_tournament_routes.py`: `POST /tournaments/{id}/open` sobre torneo en `draft` por el organizador → 200, `state="open"`. Rechazo 409 si el estado no es draft.
+- [x] T020 [P] [US1] Test `test_invite_user_creates_pending_invitation_with_48h_expiry` en `backend/tests/integration/test_tournament_routes.py`: `POST /tournaments/{id}/invitations` → 201; `expires_at` ≈ `created_at + 48h` (tolerancia ±5 s); notificación `invitation_received` creada para el invitado.
+- [x] T021 [P] [US1] Test `test_cannot_invite_same_user_twice_while_pending` en `backend/tests/integration/test_tournament_routes.py`: segunda invitación al mismo usuario en estado pending → 409.
+- [x] T022 [P] [US1] Test `test_accept_invitation_creates_participant` en `backend/tests/integration/test_tournament_routes.py`: `POST /invitations/{iid}/accept` con el invitado autenticado → 200, `state="accepted"`, existe `Participant(tournament, user, accepted_at=now)`. Notificación `invitation_accepted` para el organizador.
+- [x] T023 [P] [US1] Test `test_reject_invitation` en `backend/tests/integration/test_tournament_routes.py`: → 200, `state="rejected"`, notificación `invitation_rejected` al organizador.
+- [x] T024 [P] [US1] Test `test_cancel_pending_invitation_by_organizer` en `backend/tests/integration/test_tournament_routes.py`: → 200, `state="cancelled"`, notificación `invitation_cancelled` al invitado.
+- [x] T025 [P] [US1] Test `test_accept_expired_invitation_returns_410` en `backend/tests/integration/test_tournament_routes.py`: fijar `expires_at` en el pasado con helper de test → 410 y la invitación queda como `expired` en BBDD (check-on-read).
+- [x] T026 [P] [US1] Test `test_remove_participant_while_draft` en `backend/tests/integration/test_tournament_routes.py`: `DELETE /tournaments/{id}/participants/{pid}` por el organizador sobre torneo en draft → 204; el participante desaparece del listado.
+- [x] T027 [P] [US1] Test `test_remove_participant_after_start_rejected_409` en `backend/tests/integration/test_tournament_routes.py`.
+- [x] T028 [P] [US1] Test `test_start_tournament_rejects_below_minimum_participants` en `backend/tests/integration/test_tournament_routes.py`: con 1 participante → 409 (SC-009).
+- [x] T029 [P] [US1] Test `test_start_round_robin_generates_all_matches_and_codes` en `backend/tests/integration/test_tournament_routes.py`: con 4 participantes, tras `POST /tournaments/{id}/start` → 200, `state="active"`; `GET /tournaments/{id}/schedule` devuelve 3 rondas × 2 matches, todos con `tournament_code` no nulo y únicos.
+- [x] T030 [P] [US1] Test `test_start_single_elim_generates_first_round_with_byes` en `backend/tests/integration/test_tournament_routes.py`: con 6 participantes single-elim → primera ronda con 2 matches reales + 2 byes; los byes tienen `tournament_code is None`.
+- [x] T031 [P] [US1] Test `test_start_locks_format_change` en `backend/tests/integration/test_tournament_routes.py`: tras iniciar, `PATCH /tournaments/{id}` con nuevo formato → 409 (FR-019).
+- [x] T032 [P] [US1] Test `test_tournament_detail_hidden_for_outsider_returns_404` en `backend/tests/integration/test_tournament_routes.py`: usuario no organizador, no participante y sin invitación → 404 (patrón anti-enumeración).
+- [x] T033 [P] [US1] Test `test_list_notifications_for_current_user` en `backend/tests/integration/test_notifications_routes.py`: `GET /notifications` devuelve sólo las del usuario autenticado, ordenadas por `created_at DESC`; filtro `?unread=true` excluye las leídas.
+- [x] T034 [P] [US1] Test `test_mark_notification_read` en `backend/tests/integration/test_notifications_routes.py`: `PATCH /notifications/{id}/read` → 200, `read_at` fijado.
+- [x] T035 [P] [US1] Test `test_mark_other_users_notification_returns_404` en `backend/tests/integration/test_notifications_routes.py`.
 
 ### Tests integración frontend (Red) — en paralelo
 
-- [ ] T036 [P] [US1] MSW handlers para `tournaments` y `invitations` en `frontend/tests/mocks/tournamentHandlers.js` (listar, crear, detalle, abrir, iniciar, invitar, aceptar, rechazar, cancelar).
-- [ ] T037 [P] [US1] MSW handlers para `notifications` en el mismo fichero o en `frontend/tests/mocks/notificationHandlers.js` (listar, marcar leída).
-- [ ] T038 [P] [US1] Test integración `frontend/tests/integration/Dashboard.test.jsx`: lista los torneos del usuario (organizador + participante) y las invitaciones pendientes; botón "Nuevo torneo" abre el formulario.
-- [ ] T039 [P] [US1] Test integración `frontend/tests/integration/TournamentDetail.test.jsx` — sub-casos: (a) organizador crea torneo → aparece en detalle con estado draft; (b) organizador invita → tras polling aparece en la lista de invitaciones; (c) organizador pulsa "Iniciar" con <2 participantes → UI muestra error; (d) con ≥2 participantes → estado pasa a active y se ven los matches/codes; (e) participante no organizador no ve botones de gestión.
+- [x] T036 [P] [US1] MSW handlers para `tournaments` y `invitations` en `frontend/tests/mocks/tournamentHandlers.js` (listar, crear, detalle, abrir, iniciar, invitar, aceptar, rechazar, cancelar).
+- [x] T037 [P] [US1] MSW handlers para `notifications` en el mismo fichero o en `frontend/tests/mocks/notificationHandlers.js` (listar, marcar leída).
+- [x] T038 [P] [US1] Test integración `frontend/tests/integration/Dashboard.test.jsx`: lista los torneos del usuario (organizador + participante) y las invitaciones pendientes; botón "Nuevo torneo" abre el formulario.
+- [x] T039 [P] [US1] Test integración `frontend/tests/integration/TournamentDetail.test.jsx` — sub-casos: (a) organizador crea torneo → aparece en detalle con estado draft; (b) organizador invita → tras polling aparece en la lista de invitaciones; (c) organizador pulsa "Iniciar" con <2 participantes → UI muestra error; (d) con ≥2 participantes → estado pasa a active y se ven los matches/codes; (e) participante no organizador no ve botones de gestión.
 
 ### Implementation (Green)
 
 #### Backend — modelos y schemas
 
-- [ ] T040 [P] [US1] Modelo `Tournament` en `backend/app/models/tournament.py` con columnas según [data-model.md § Tournament](./data-model.md) (UUIDv4, nombre, start_at nullable, format enum, state enum, organizer_id FK User, created/started/finished/cancelled_at).
-- [ ] T041 [P] [US1] Modelo `Participant` en `backend/app/models/participant.py` con `UNIQUE (tournament_id, user_id)`, `accepted_at`, flag `removed` (soft delete pre-start).
-- [ ] T042 [P] [US1] Modelo `Invitation` en `backend/app/models/invitation.py` con estados enum, `expires_at`, `responded_at`, `inviter_user_id` (= organizer_id esta iteración).
-- [ ] T043 [P] [US1] Modelo `Match` en `backend/app/models/match.py` con `round_number`, `bracket_position` nullable, `player1_id`, `player2_id` nullable, `is_bye`, `tournament_code` nullable, `code_created_at` nullable, `state` enum (`pending`, `manual`; valor `verified_api` reservado en el enum pero sin transición activa), `winner_participant_id` nullable, `resolved_at` nullable.
-- [ ] T044 [P] [US1] Modelo `Notification` en `backend/app/models/notification.py` con `type` enum (valores listados en [data-model.md § Notification](./data-model.md)), FKs nullables a tournament/match/invitation.
-- [ ] T045 [P] [US1] Schemas Pydantic en `backend/app/schemas/tournament.py`: enums `TournamentFormat`/`TournamentState`/`InvitationState`, `TournamentCreate`, `TournamentUpdate`, `Tournament`, `ParticipantSummary`, `Invitation`, `InvitationCreate`, `RoundMatchSummary`, `Schedule`, `StandingEntry`, `MatchState`.
-- [ ] T046 [P] [US1] Schemas Pydantic en `backend/app/schemas/notification.py`: enum `NotificationType`, modelo `Notification`.
+- [x] T040 [P] [US1] Modelo `Tournament` en `backend/app/models/tournament.py` con columnas según [data-model.md § Tournament](./data-model.md) (UUIDv4, nombre, start_at nullable, format enum, state enum, organizer_id FK User, created/started/finished/cancelled_at).
+- [x] T041 [P] [US1] Modelo `Participant` en `backend/app/models/participant.py` con `UNIQUE (tournament_id, user_id)`, `accepted_at`, flag `removed` (soft delete pre-start).
+- [x] T042 [P] [US1] Modelo `Invitation` en `backend/app/models/invitation.py` con estados enum, `expires_at`, `responded_at`, `inviter_user_id` (= organizer_id esta iteración).
+- [x] T043 [P] [US1] Modelo `Match` en `backend/app/models/match.py` con `round_number`, `bracket_position` nullable, `player1_id`, `player2_id` nullable, `is_bye`, `tournament_code` nullable, `code_created_at` nullable, `state` enum (`pending`, `manual`; valor `verified_api` reservado en el enum pero sin transición activa), `winner_participant_id` nullable, `resolved_at` nullable.
+- [x] T044 [P] [US1] Modelo `Notification` en `backend/app/models/notification.py` con `type` enum (valores listados en [data-model.md § Notification](./data-model.md)), FKs nullables a tournament/match/invitation.
+- [x] T045 [P] [US1] Schemas Pydantic en `backend/app/schemas/tournament.py`: enums `TournamentFormat`/`TournamentState`/`InvitationState`, `TournamentCreate`, `TournamentUpdate`, `Tournament`, `ParticipantSummary`, `Invitation`, `InvitationCreate`, `RoundMatchSummary`, `Schedule`, `StandingEntry`, `MatchState`.
+- [x] T046 [P] [US1] Schemas Pydantic en `backend/app/schemas/notification.py`: enum `NotificationType`, modelo `Notification`.
 
 #### Backend — servicios
 
-- [ ] T047 [US1] `backend/app/services/calendar_service.py`: función `generate_round_robin(participants: list[Participant]) -> list[Round]` siguiendo el circle method (pseudocódigo en [research.md § Algoritmo round-robin](./research.md)). Ordena entrada por `accepted_at ASC, id ASC`. Byes con `tournament_code = None`.
-- [ ] T048 [US1] Misma `backend/app/services/calendar_service.py`: `generate_single_elim_first_round(participants) -> Round` con byes asignados a los de `accepted_at` más reciente. Genera `tournament_code` (UUIDv4) y `code_created_at = now` sólo para matches no-bye.
-- [ ] T049 [US1] Función placeholder `close_round_and_generate_next(tournament, closed_round_number)` en el mismo fichero: detección de ronda completada + generación de la siguiente ronda. La implementación completa (con avance de ganadores) se cierra en US3 — este commit sólo añade la firma y docstring, con `raise NotImplementedError` (test que lo usa vendrá en US3).
-- [ ] T050 [US1] `backend/app/services/notification_service.py` con `create_notification(user_id, type, tournament_id=None, match_id=None, invitation_id=None) -> Notification`, `list_for_user(user_id, only_unread)`, `mark_read(notification_id, user_id)`.
-- [ ] T051 [US1] `backend/app/services/tournament_service.py` — métodos:
+- [x] T047 [US1] `backend/app/services/calendar_service.py`: función `generate_round_robin(participants: list[Participant]) -> list[Round]` siguiendo el circle method (pseudocódigo en [research.md § Algoritmo round-robin](./research.md)). Ordena entrada por `accepted_at ASC, id ASC`. Byes con `tournament_code = None`.
+- [x] T048 [US1] Misma `backend/app/services/calendar_service.py`: `generate_single_elim_first_round(participants) -> Round` con byes asignados a los de `accepted_at` más reciente. Genera `tournament_code` (UUIDv4) y `code_created_at = now` sólo para matches no-bye.
+- [x] T049 [US1] Función placeholder `close_round_and_generate_next(tournament, closed_round_number)` en el mismo fichero: detección de ronda completada + generación de la siguiente ronda. La implementación completa (con avance de ganadores) se cierra en US3 — este commit sólo añade la firma y docstring, con `raise NotImplementedError` (test que lo usa vendrá en US3).
+- [x] T050 [US1] `backend/app/services/notification_service.py` con `create_notification(user_id, type, tournament_id=None, match_id=None, invitation_id=None) -> Notification`, `list_for_user(user_id, only_unread)`, `mark_read(notification_id, user_id)`.
+- [x] T051 [US1] `backend/app/services/tournament_service.py` — métodos:
   - `create(organizer_id, payload) -> Tournament`.
   - `get_visible_to_user(tournament_id, user_id)` (404 si no organizador/participante/invitado pendiente).
   - `list_for_user(user_id, state_filter)`.
@@ -141,25 +141,25 @@ Estructura fijada en [plan.md § Project Structure](./plan.md) (Variante B — b
 
 #### Backend — rutas y migración
 
-- [ ] T052 [US1] `backend/app/api/routes/tournaments.py` con los endpoints:
+- [x] T052 [US1] `backend/app/api/routes/tournaments.py` con los endpoints:
   - `POST /tournaments`, `GET /tournaments`, `GET /tournaments/{id}`, `POST /tournaments/{id}/open`, `POST /tournaments/{id}/start`.
   - `POST /tournaments/{id}/invitations`, `GET /tournaments/{id}/invitations`, `POST /tournaments/{id}/invitations/{iid}/cancel`.
   - `GET /invitations`, `POST /invitations/{iid}/accept`, `POST /invitations/{iid}/reject`.
   - `DELETE /tournaments/{id}/participants/{pid}`.
   - `GET /tournaments/{id}/schedule` (lista de rondas; participantes/organizador ven `tournament_code` dentro de `RoundMatchSummary`; filtrado de `tournament_code` para terceros que no estén en el match se aplica en la serialización).
-- [ ] T053 [US1] `backend/app/api/routes/notifications.py` con `GET /notifications` (filtro `?unread=true`) y `PATCH /notifications/{id}/read`.
-- [ ] T054 [US1] Registrar `tournament_router` y `notification_router` en `backend/app/main.py`.
-- [ ] T055 [US1] Revisión Alembic única `initial_tournament_schema` en `backend/app/db/migrations/versions/`: crea tablas `tournaments`, `participants`, `invitations`, `matches`, `notifications`. Ejecutar `alembic upgrade head` en la BBDD de test antes de correr la integración.
+- [x] T053 [US1] `backend/app/api/routes/notifications.py` con `GET /notifications` (filtro `?unread=true`) y `PATCH /notifications/{id}/read`.
+- [x] T054 [US1] Registrar `tournament_router` y `notification_router` en `backend/app/main.py`.
+- [ ] T055 [US1] Revisión Alembic única `initial_tournament_schema` en `backend/app/db/migrations/versions/`: crea tablas `tournaments`, `participants`, `invitations`, `matches`, `notifications`. **PENDIENTE**: la schema se crea en tests vía `Base.metadata.create_all` (mismo patrón que 001 T029); la migración Alembic se generará en bloque al final contra una BBDD Postgres real.
 
 #### Frontend
 
-- [ ] T056 [P] [US1] `frontend/src/api/tournamentApi.js` con funciones `listMine`, `create`, `getById`, `openRegistration`, `start`, `invite`, `listInvitations`, `cancelInvitation`, `listMyInvitations`, `accept`, `reject`, `removeParticipant` usando el `request` helper de 001 (`credentials: "include"`).
-- [ ] T057 [P] [US1] `frontend/src/api/notificationApi.js` con `list(unread)` y `markRead(id)`.
-- [ ] T058 [P] [US1] `frontend/src/context/NotificationContext.jsx` usando `usePolling(notificationApi.list({unread:true}), 10000)` y exponiendo `{ notifications, markRead, refresh }`.
-- [ ] T059 [P] [US1] `frontend/src/hooks/useTournament.js` (recibe `tournamentId`, usa `usePolling` para `getById` cada 10 s + expone `refresh` inmediato tras acciones locales).
-- [ ] T060 [P] [US1] `frontend/src/pages/Dashboard.jsx`: lista los torneos del usuario (organizador/participante) y las invitaciones pendientes recibidas; botón "Nuevo torneo" abre formulario que llama a `tournamentApi.create`.
-- [ ] T061 [P] [US1] `frontend/src/pages/TournamentDetail.jsx`: muestra estado, participantes, invitaciones (si es organizador), formulario de invitar, botones "Abrir inscripciones" / "Iniciar" condicionados por estado y rol, lista de matches con `tournament_code` (visible sólo a organizador y jugadores del match).
-- [ ] T062 [US1] Registrar rutas `/dashboard`, `/tournaments/:id` en `frontend/src/main.jsx` envueltas en `<ProtectedRoute>`.
+- [x] T056 [P] [US1] `frontend/src/api/tournamentApi.js` con funciones `listMine`, `create`, `getById`, `openRegistration`, `start`, `invite`, `listInvitations`, `cancelInvitation`, `listMyInvitations`, `accept`, `reject`, `removeParticipant` usando el `request` helper de 001 (`credentials: "include"`).
+- [x] T057 [P] [US1] `frontend/src/api/notificationApi.js` con `list(unread)` y `markRead(id)`.
+- [x] T058 [P] [US1] `frontend/src/context/NotificationContext.jsx` usando `usePolling(notificationApi.list({unread:true}), 10000)` y exponiendo `{ notifications, markRead, refresh }`.
+- [x] T059 [P] [US1] `frontend/src/hooks/useTournament.js` (recibe `tournamentId`, usa `usePolling` para `getById` cada 10 s + expone `refresh` inmediato tras acciones locales).
+- [x] T060 [P] [US1] `frontend/src/pages/Dashboard.jsx`: lista los torneos del usuario (organizador/participante) y las invitaciones pendientes recibidas; botón "Nuevo torneo" abre formulario que llama a `tournamentApi.create`.
+- [x] T061 [P] [US1] `frontend/src/pages/TournamentDetail.jsx`: muestra estado, participantes, invitaciones (si es organizador), formulario de invitar, botones "Abrir inscripciones" / "Iniciar" condicionados por estado y rol, lista de matches con `tournament_code` (visible sólo a organizador y jugadores del match).
+- [x] T062 [US1] Registrar rutas `/dashboard`, `/tournaments/:id` en `frontend/src/main.jsx` envueltas en `<ProtectedRoute>`.
 
 **Checkpoint**: US1 entregable (MVP). Un usuario puede crear un torneo, invitar, recibir confirmaciones, eliminar participantes pre-inicio, iniciar el torneo y ver el calendario generado con códigos. Notificaciones operativas con polling.
 
@@ -175,35 +175,35 @@ Estructura fijada en [plan.md § Project Structure](./plan.md) (Variante B — b
 
 ### Tests (Red) — en paralelo
 
-- [ ] T063 [P] [US3] Test `test_register_manual_result_marks_match_as_manual` en `backend/tests/unit/test_match_service.py`: llamada al servicio con winner válido → `state='manual'`, `winner_participant_id=<winner>`, `resolved_at=now` ± 1 s.
-- [ ] T064 [P] [US3] Test `test_manual_result_is_immutable` en `backend/tests/unit/test_match_service.py`: segunda llamada al servicio sobre el mismo match (ya manual) → excepción de dominio (bucket 409); el match no cambia (FR-042).
-- [ ] T065 [P] [US3] Test `test_manual_cannot_use_non_player_as_winner` en `backend/tests/unit/test_match_service.py`: `winner_participant_id` que no es player1/player2 → excepción (409).
-- [ ] T066 [P] [US3] Test `test_manual_cannot_register_on_future_round` en `backend/tests/unit/test_match_service.py`: match cuya ronda aún no existe (en single-elim) → excepción (FR-045, FR-046).
-- [ ] T067 [P] [US3] Test `test_manual_in_single_elim_advances_winner_to_next_round` en `backend/tests/unit/test_match_service.py`: tras el último match de la ronda 1, la ronda 2 se genera con los ganadores (preservando posición de bracket) y `tournament_code` nuevo por match.
-- [ ] T068 [P] [US3] Test `test_bye_is_resolved_as_manual_on_round_close_single_elim` en `backend/tests/unit/test_match_service.py`: al cerrarse una ronda con byes (single-elim), los byes pasan a `manual` con `winner=player1`; el jugador bye aparece en la ronda siguiente.
-- [ ] T069 [P] [US3] Test `test_grand_final_resolution_transitions_tournament_to_finished` en `backend/tests/unit/test_match_service.py`: en single-elim tras resolver la final, `tournament.state='finished'` y `finished_at` fijado (FR-050).
-- [ ] T070 [P] [US3] Test `test_round_robin_last_result_transitions_tournament_to_finished` en `backend/tests/unit/test_match_service.py`: al cerrarse el último match pendiente (sin byes pendientes) en round-robin, transición automática a `finished` (FR-020). Notificación `tournament_finished` a todos.
-- [ ] T071 [P] [US3] Test `test_manual_result_creates_match_resolved_notifications_for_both_players` en `backend/tests/unit/test_match_service.py`.
-- [ ] T072 [P] [US3] Test `test_manual_result_route_organizer_only` en `backend/tests/integration/test_match_routes.py`: jugador no organizador → 403; no-autenticado → 401.
-- [ ] T073 [P] [US3] Test `test_manual_result_route_returns_match_with_tag` en `backend/tests/integration/test_match_routes.py`: `POST /matches/{id}/manual-result` con winner válido → 200, body con `state='manual'`, `winner_participant_id` esperado.
-- [ ] T074 [P] [US3] Test `test_get_match_hides_tournament_code_for_non_player_non_organizer` en `backend/tests/integration/test_match_routes.py`: un participante del torneo que no es player de ese match ve `tournament_code: null`.
-- [ ] T075 [P] [US3] MSW handler `matchHandlers.js` en `frontend/tests/mocks/matchHandlers.js` (detalle + manual-result).
-- [ ] T076 [P] [US3] Test integración `frontend/tests/integration/MatchDetail.test.jsx`: (a) organizador ve botón "Registrar resultado"; (b) participante jugador del match ve el detalle pero no ese botón; (c) tras registrar → UI muestra etiqueta "Introducido manualmente" permanente.
+- [x] T063 [P] [US3] Test `test_register_manual_result_marks_match_as_manual` en `backend/tests/unit/test_match_service.py`: llamada al servicio con winner válido → `state='manual'`, `winner_participant_id=<winner>`, `resolved_at=now` ± 1 s.
+- [x] T064 [P] [US3] Test `test_manual_result_is_immutable` en `backend/tests/unit/test_match_service.py`: segunda llamada al servicio sobre el mismo match (ya manual) → excepción de dominio (bucket 409); el match no cambia (FR-042).
+- [x] T065 [P] [US3] Test `test_manual_cannot_use_non_player_as_winner` en `backend/tests/unit/test_match_service.py`: `winner_participant_id` que no es player1/player2 → excepción (409).
+- [x] T066 [P] [US3] Test `test_manual_cannot_register_on_future_round` en `backend/tests/unit/test_match_service.py`: match cuya ronda aún no existe (en single-elim) → excepción (FR-045, FR-046).
+- [x] T067 [P] [US3] Test `test_manual_in_single_elim_advances_winner_to_next_round` en `backend/tests/unit/test_match_service.py`: tras el último match de la ronda 1, la ronda 2 se genera con los ganadores (preservando posición de bracket) y `tournament_code` nuevo por match.
+- [x] T068 [P] [US3] Test `test_bye_is_resolved_as_manual_on_round_close_single_elim` en `backend/tests/unit/test_match_service.py`: al cerrarse una ronda con byes (single-elim), los byes pasan a `manual` con `winner=player1`; el jugador bye aparece en la ronda siguiente.
+- [x] T069 [P] [US3] Test `test_grand_final_resolution_transitions_tournament_to_finished` en `backend/tests/unit/test_match_service.py`: en single-elim tras resolver la final, `tournament.state='finished'` y `finished_at` fijado (FR-050).
+- [x] T070 [P] [US3] Test `test_round_robin_last_result_transitions_tournament_to_finished` en `backend/tests/unit/test_match_service.py`: al cerrarse el último match pendiente (sin byes pendientes) en round-robin, transición automática a `finished` (FR-020). Notificación `tournament_finished` a todos.
+- [x] T071 [P] [US3] Test `test_manual_result_creates_match_resolved_notifications_for_both_players` en `backend/tests/unit/test_match_service.py`.
+- [x] T072 [P] [US3] Test `test_manual_result_route_organizer_only` en `backend/tests/integration/test_match_routes.py`: jugador no organizador → 403; no-autenticado → 401.
+- [x] T073 [P] [US3] Test `test_manual_result_route_returns_match_with_tag` en `backend/tests/integration/test_match_routes.py`: `POST /matches/{id}/manual-result` con winner válido → 200, body con `state='manual'`, `winner_participant_id` esperado.
+- [x] T074 [P] [US3] Test `test_get_match_hides_tournament_code_for_non_player_non_organizer` en `backend/tests/integration/test_match_routes.py`: un participante del torneo que no es player de ese match ve `tournament_code: null`.
+- [x] T075 [P] [US3] MSW handler `matchHandlers.js` en `frontend/tests/mocks/matchHandlers.js` (detalle + manual-result).
+- [x] T076 [P] [US3] Test integración `frontend/tests/integration/MatchDetail.test.jsx`: (a) organizador ve botón "Registrar resultado"; (b) participante jugador del match ve el detalle pero no ese botón; (c) tras registrar → UI muestra etiqueta "Introducido manualmente" permanente.
 
 ### Implementation (Green)
 
-- [ ] T077 [US3] `backend/app/services/match_service.py` con:
+- [x] T077 [US3] `backend/app/services/match_service.py` con:
   - `register_manual_result(match_id, winner_participant_id, acting_user_id)` (valida organizer, winner ∈ players, match.state == 'pending', ronda ≤ current round; marca manual + resolved_at; notifica ambos jugadores `match_resolved`; delega en `close_round_and_generate_next` si aplica).
   - `advance_winner_single_elim(match)` (inserta al ganador en el bracket_position de la ronda siguiente si ya existe; si no, se creará al cerrarse la ronda).
   - `close_round_and_generate_next(tournament, round_number)` (si todos los matches de la ronda están resueltos: resuelve byes, genera ronda siguiente o transita `finished`; genera `tournament_code` para los nuevos matches).
   - `finalize_if_last_match(tournament)` (round-robin y single-elim; transición `active → finished`, `finished_at=now`, notificación `tournament_finished` a todos los participantes).
-- [ ] T078 [US3] Completar `calendar_service.close_round_and_generate_next` (reemplazar `NotImplementedError` de T049) delegando en `match_service` o compartiendo lógica (decisión de refactor dentro del ciclo Green/Refactor — priorizar mantener en `match_service` para centralizar transiciones de estado).
-- [ ] T079 [P] [US3] Schemas en `backend/app/schemas/match.py`: `Match`, `ManualResultRequest`. Serializador que elide `tournament_code` según el rol del lector.
-- [ ] T080 [US3] `backend/app/api/routes/matches.py` con `GET /matches/{id}` y `POST /matches/{id}/manual-result`.
-- [ ] T081 [US3] Registrar `match_router` en `backend/app/main.py`.
-- [ ] T082 [P] [US3] `frontend/src/api/matchApi.js` con `getById`, `registerManualResult`.
-- [ ] T083 [P] [US3] `frontend/src/pages/MatchDetail.jsx`: detalle del match, `tournament_code` visible sólo si viene en el payload; botón "Registrar resultado" visible sólo para organizador cuando `state='pending'`. Tras registrar, UI muestra etiqueta "Introducido manualmente" inmutable.
-- [ ] T084 [US3] Ruta `/matches/:id` en `frontend/src/main.jsx` envuelta en `<ProtectedRoute>`; enlace desde `TournamentDetail`.
+- [x] T078 [US3] Completar `calendar_service.close_round_and_generate_next` (reemplazar `NotImplementedError` de T049) delegando en `match_service` o compartiendo lógica (decisión de refactor dentro del ciclo Green/Refactor — priorizar mantener en `match_service` para centralizar transiciones de estado).
+- [x] T079 [P] [US3] Schemas en `backend/app/schemas/match.py`: `Match`, `ManualResultRequest`. Serializador que elide `tournament_code` según el rol del lector.
+- [x] T080 [US3] `backend/app/api/routes/matches.py` con `GET /matches/{id}` y `POST /matches/{id}/manual-result`.
+- [x] T081 [US3] Registrar `match_router` en `backend/app/main.py`.
+- [x] T082 [P] [US3] `frontend/src/api/matchApi.js` con `getById`, `registerManualResult`.
+- [x] T083 [P] [US3] `frontend/src/pages/MatchDetail.jsx`: detalle del match, `tournament_code` visible sólo si viene en el payload; botón "Registrar resultado" visible sólo para organizador cuando `state='pending'`. Tras registrar, UI muestra etiqueta "Introducido manualmente" inmutable.
+- [x] T084 [US3] Ruta `/matches/:id` en `frontend/src/main.jsx` envuelta en `<ProtectedRoute>`; enlace desde `TournamentDetail`.
 
 **Checkpoint**: Se pueden completar torneos de principio a fin por la vía manual. `state='finished'` se alcanza automáticamente.
 
@@ -219,27 +219,27 @@ Estructura fijada en [plan.md § Project Structure](./plan.md) (Variante B — b
 
 ### Tests (Red) — en paralelo
 
-- [ ] T085 [P] [US4] Test `test_points_are_wins_and_byes_dont_score` en `backend/tests/unit/test_standings_service.py`: montar torneo con 3 resueltos y 1 bye para un jugador → puntos = victorias; el jugador con bye tiene `byes=1` pero sus puntos igualan sólo sus victorias (FR-048, SC-005).
-- [ ] T086 [P] [US4] Test `test_tiebreak_head_to_head` en `backend/tests/unit/test_standings_service.py`: dos jugadores con mismos puntos; el que ganó el directo queda arriba.
-- [ ] T087 [P] [US4] Test `test_circular_tie_breaks_by_inscription_date` en `backend/tests/unit/test_standings_service.py`: tres jugadores A,B,C con mismos puntos y ciclo A>B>C>A; orden final = `accepted_at ASC`.
-- [ ] T088 [P] [US4] Test `test_tie_with_same_inscription_breaks_by_participant_id` en `backend/tests/unit/test_standings_service.py`: dos participantes con idéntico `accepted_at` → orden por `participant.id ASC` (edge case spec).
-- [ ] T089 [P] [US4] Test `test_standings_service_is_deterministic` en `backend/tests/unit/test_standings_service.py`: misma configuración dos invocaciones → mismo orden.
-- [ ] T090 [P] [US4] Test `test_get_schedule_shows_all_rounds_and_states` en `backend/tests/integration/test_tournament_routes.py`: `GET /tournaments/{id}/schedule` incluye el estado (`pending` o `manual`) de cada match; participante ve su `tournament_code`, tercero no.
-- [ ] T091 [P] [US4] Test `test_get_standings_returns_404_for_single_elim` en `backend/tests/integration/test_tournament_routes.py`.
-- [ ] T092 [P] [US4] Test `test_get_bracket_returns_404_for_round_robin` en `backend/tests/integration/test_tournament_routes.py`.
-- [ ] T093 [P] [US4] Test `test_get_standings_round_robin_orders_by_rules` en `backend/tests/integration/test_tournament_routes.py`: fixture con escenario de desempate directo → orden esperado.
-- [ ] T094 [P] [US4] Test integración `frontend/tests/integration/TournamentDetail.test.jsx` — extensión: (a) formato round-robin renderiza `<StandingsTable>`; (b) formato single-elim renderiza `<TournamentBracket>`; (c) tras `markRead`/action local, se dispara `refresh` inmediato.
+- [x] T085 [P] [US4] Test `test_points_are_wins_and_byes_dont_score` en `backend/tests/unit/test_standings_service.py`: montar torneo con 3 resueltos y 1 bye para un jugador → puntos = victorias; el jugador con bye tiene `byes=1` pero sus puntos igualan sólo sus victorias (FR-048, SC-005).
+- [x] T086 [P] [US4] Test `test_tiebreak_head_to_head` en `backend/tests/unit/test_standings_service.py`: dos jugadores con mismos puntos; el que ganó el directo queda arriba.
+- [x] T087 [P] [US4] Test `test_circular_tie_breaks_by_inscription_date` en `backend/tests/unit/test_standings_service.py`: tres jugadores A,B,C con mismos puntos y ciclo A>B>C>A; orden final = `accepted_at ASC`.
+- [x] T088 [P] [US4] Test `test_tie_with_same_inscription_breaks_by_participant_id` en `backend/tests/unit/test_standings_service.py`: dos participantes con idéntico `accepted_at` → orden por `participant.id ASC` (edge case spec).
+- [x] T089 [P] [US4] Test `test_standings_service_is_deterministic` en `backend/tests/unit/test_standings_service.py`: misma configuración dos invocaciones → mismo orden.
+- [x] T090 [P] [US4] Test `test_get_schedule_shows_all_rounds_and_states` en `backend/tests/integration/test_tournament_routes.py`: `GET /tournaments/{id}/schedule` incluye el estado (`pending` o `manual`) de cada match; participante ve su `tournament_code`, tercero no.
+- [x] T091 [P] [US4] Test `test_get_standings_returns_404_for_single_elim` en `backend/tests/integration/test_tournament_routes.py`.
+- [x] T092 [P] [US4] Test `test_get_bracket_returns_404_for_round_robin` en `backend/tests/integration/test_tournament_routes.py`.
+- [x] T093 [P] [US4] Test `test_get_standings_round_robin_orders_by_rules` en `backend/tests/integration/test_tournament_routes.py`: fixture con escenario de desempate directo → orden esperado.
+- [x] T094 [P] [US4] Test integración `frontend/tests/integration/TournamentDetail.test.jsx` — extensión: (a) formato round-robin renderiza `<StandingsTable>`; (b) formato single-elim renderiza `<TournamentBracket>`; (c) tras `markRead`/action local, se dispara `refresh` inmediato.
 
 ### Implementation (Green)
 
-- [ ] T095 [US4] `backend/app/services/standings_service.py::compute(tournament) -> list[StandingEntry]` implementando las 4 reglas de desempate (puntos → directo → inscripción → id). Para el paso directo construir DAG "A vence a B" entre los empatados y detectar ciclos con DFS (ver [data-model.md § StandingEntry](./data-model.md)).
-- [ ] T096 [US4] Añadir a `backend/app/api/routes/tournaments.py`:
+- [x] T095 [US4] `backend/app/services/standings_service.py::compute(tournament) -> list[StandingEntry]` implementando las 4 reglas de desempate (puntos → directo → inscripción → id). Para el paso directo construir DAG "A vence a B" entre los empatados y detectar ciclos con DFS (ver [data-model.md § StandingEntry](./data-model.md)).
+- [x] T096 [US4] Añadir a `backend/app/api/routes/tournaments.py`:
   - `GET /tournaments/{id}/schedule` (si no está ya expuesto de US1; asegurar formato `Schedule` completo con estados).
   - `GET /tournaments/{id}/standings` (404 si single-elim).
   - `GET /tournaments/{id}/bracket` (404 si round-robin; reutiliza `Schedule`).
-- [ ] T097 [P] [US4] `frontend/src/components/StandingsTable.jsx` — recibe lista de `StandingEntry`, muestra rank, nickname, victorias, derrotas, byes, puntos.
-- [ ] T098 [P] [US4] `frontend/src/components/TournamentBracket.jsx` — recibe el `Schedule` de single-elim y dibuja el cuadro (CSS grid simple); resalta ganador por match; botón "ir al match" enlaza a `MatchDetail`.
-- [ ] T099 [US4] Integrar componentes en `TournamentDetail.jsx` condicionados al `format`; añadir polling (`usePolling` reutilizado) sobre `schedule` y `standings/bracket` según corresponda. Refresh inmediato tras registrar resultado manual (callback del MatchDetail).
+- [x] T097 [P] [US4] `frontend/src/components/StandingsTable.jsx` — recibe lista de `StandingEntry`, muestra rank, nickname, victorias, derrotas, byes, puntos.
+- [x] T098 [P] [US4] `frontend/src/components/TournamentBracket.jsx` — recibe el `Schedule` de single-elim y dibuja el cuadro (CSS grid simple); resalta ganador por match; botón "ir al match" enlaza a `MatchDetail`.
+- [x] T099 [US4] Integrar componentes en `TournamentDetail.jsx` condicionados al `format`; añadir polling (`usePolling` reutilizado) sobre `schedule` y `standings/bracket` según corresponda. Refresh inmediato tras registrar resultado manual (callback del MatchDetail).
 
 **Checkpoint**: Clasificación y cuadro visibles y correctos en tiempo real.
 
@@ -255,18 +255,18 @@ Estructura fijada en [plan.md § Project Structure](./plan.md) (Variante B — b
 
 ### Tests (Red) — en paralelo
 
-- [ ] T100 [P] [US5] Test `test_rename_tournament_while_draft` en `backend/tests/integration/test_tournament_routes.py`.
-- [ ] T101 [P] [US5] Test `test_change_format_while_open` en `backend/tests/integration/test_tournament_routes.py`.
-- [ ] T102 [P] [US5] Test `test_change_start_at_to_null_while_draft` en `backend/tests/integration/test_tournament_routes.py`.
-- [ ] T103 [P] [US5] Test `test_modify_after_start_returns_409` en `backend/tests/integration/test_tournament_routes.py` (nombre, fecha y formato todos rechazados).
-- [ ] T104 [P] [US5] Test `test_modify_by_non_organizer_returns_403` en `backend/tests/integration/test_tournament_routes.py`.
-- [ ] T105 [P] [US5] Test integración `frontend/tests/integration/TournamentDetail.test.jsx` — extensión: organizador en draft ve formulario de edición; en active, los controles de edición no se renderizan.
+- [x] T100 [P] [US5] Test `test_rename_tournament_while_draft` en `backend/tests/integration/test_tournament_routes.py`.
+- [x] T101 [P] [US5] Test `test_change_format_while_open` en `backend/tests/integration/test_tournament_routes.py`.
+- [x] T102 [P] [US5] Test `test_change_start_at_to_null_while_draft` en `backend/tests/integration/test_tournament_routes.py`.
+- [x] T103 [P] [US5] Test `test_modify_after_start_returns_409` en `backend/tests/integration/test_tournament_routes.py` (nombre, fecha y formato todos rechazados).
+- [x] T104 [P] [US5] Test `test_modify_by_non_organizer_returns_403` en `backend/tests/integration/test_tournament_routes.py`.
+- [x] T105 [P] [US5] Test integración `frontend/tests/integration/TournamentDetail.test.jsx` — extensión: organizador en draft ve formulario de edición; en active, los controles de edición no se renderizan.
 
 ### Implementation (Green)
 
-- [ ] T106 [US5] `tournament_service.update(tournament_id, payload, user_id)` en `backend/app/services/tournament_service.py`: valida organizer + estado ∈ {draft, open}; aplica cambios permitidos; devuelve Tournament.
-- [ ] T107 [US5] `PATCH /tournaments/{id}` en `backend/app/api/routes/tournaments.py` consumiendo `TournamentUpdate`.
-- [ ] T108 [P] [US5] Formulario de edición en `frontend/src/pages/TournamentDetail.jsx` visible sólo para organizador cuando `state ∈ {draft, open}`.
+- [x] T106 [US5] `tournament_service.update(tournament_id, payload, user_id)` en `backend/app/services/tournament_service.py`: valida organizer + estado ∈ {draft, open}; aplica cambios permitidos; devuelve Tournament.
+- [x] T107 [US5] `PATCH /tournaments/{id}` en `backend/app/api/routes/tournaments.py` consumiendo `TournamentUpdate`.
+- [x] T108 [P] [US5] Formulario de edición en `frontend/src/pages/TournamentDetail.jsx` visible sólo para organizador cuando `state ∈ {draft, open}`.
 
 **Checkpoint**: Modificación pre-inicio operativa y bloqueo post-inicio verificado.
 
@@ -282,18 +282,18 @@ Estructura fijada en [plan.md § Project Structure](./plan.md) (Variante B — b
 
 ### Tests (Red) — en paralelo
 
-- [ ] T109 [P] [US6] Test `test_cancel_from_draft_transitions_to_cancelled` en `backend/tests/integration/test_tournament_routes.py`.
-- [ ] T110 [P] [US6] Test `test_cancel_from_active_transitions_to_cancelled` en `backend/tests/integration/test_tournament_routes.py`.
-- [ ] T111 [P] [US6] Test `test_cancel_from_finished_returns_409` en `backend/tests/integration/test_tournament_routes.py`.
-- [ ] T112 [P] [US6] Test `test_cancel_creates_notification_for_every_participant` en `backend/tests/integration/test_tournament_routes.py`.
-- [ ] T113 [P] [US6] Test `test_cancelled_tournament_rejects_any_state_mutation` en `backend/tests/integration/test_tournament_routes.py`: tras cancelar, `PATCH`, `open`, `start`, `invite`, `manual-result`, etc. → 409.
-- [ ] T114 [P] [US6] Test integración `frontend/tests/integration/TournamentDetail.test.jsx` — extensión: organizador ve botón "Cancelar" cuando no terminal; tras cancelar, vista pasa a solo-lectura (sin botones de acción).
+- [x] T109 [P] [US6] Test `test_cancel_from_draft_transitions_to_cancelled` en `backend/tests/integration/test_tournament_routes.py`.
+- [x] T110 [P] [US6] Test `test_cancel_from_active_transitions_to_cancelled` en `backend/tests/integration/test_tournament_routes.py`.
+- [x] T111 [P] [US6] Test `test_cancel_from_finished_returns_409` en `backend/tests/integration/test_tournament_routes.py`.
+- [x] T112 [P] [US6] Test `test_cancel_creates_notification_for_every_participant` en `backend/tests/integration/test_tournament_routes.py`.
+- [x] T113 [P] [US6] Test `test_cancelled_tournament_rejects_any_state_mutation` en `backend/tests/integration/test_tournament_routes.py`: tras cancelar, `PATCH`, `open`, `start`, `invite`, `manual-result`, etc. → 409.
+- [x] T114 [P] [US6] Test integración `frontend/tests/integration/TournamentDetail.test.jsx` — extensión: organizador ve botón "Cancelar" cuando no terminal; tras cancelar, vista pasa a solo-lectura (sin botones de acción).
 
 ### Implementation (Green)
 
-- [ ] T115 [US6] `tournament_service.cancel(tournament_id, user_id)` en `backend/app/services/tournament_service.py`: valida organizer + estado ∉ {finished, cancelled}; transita a `cancelled`, `cancelled_at=now`; crea notificación `tournament_cancelled` para cada participante activo; bloquea mutaciones subsiguientes en todos los puntos de servicio.
-- [ ] T116 [US6] `POST /tournaments/{id}/cancel` en `backend/app/api/routes/tournaments.py`.
-- [ ] T117 [P] [US6] Botón "Cancelar torneo" en `frontend/src/pages/TournamentDetail.jsx` (organizador only, estado no-terminal) con confirmación en UI.
+- [x] T115 [US6] `tournament_service.cancel(tournament_id, user_id)` en `backend/app/services/tournament_service.py`: valida organizer + estado ∉ {finished, cancelled}; transita a `cancelled`, `cancelled_at=now`; crea notificación `tournament_cancelled` para cada participante activo; bloquea mutaciones subsiguientes en todos los puntos de servicio.
+- [x] T116 [US6] `POST /tournaments/{id}/cancel` en `backend/app/api/routes/tournaments.py`.
+- [x] T117 [P] [US6] Botón "Cancelar torneo" en `frontend/src/pages/TournamentDetail.jsx` (organizador only, estado no-terminal) con confirmación en UI.
 
 **Checkpoint**: Todas las historias en scope entregadas. FR-005..FR-033, FR-040..FR-058 implementados.
 
@@ -301,14 +301,14 @@ Estructura fijada en [plan.md § Project Structure](./plan.md) (Variante B — b
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T118 [P] Actualizar `README.md` de la raíz añadiendo enlace a [quickstart.md](./quickstart.md) de 002 y resumen del flujo MVP.
-- [ ] T119 [P] Ejecutar `pytest --cov=app --cov-report=term-missing` en `backend/` y adjuntar el informe. Objetivo mínimo razonable por módulo: `calendar_service` ≥ 95 %, `standings_service` ≥ 95 %, `match_service` ≥ 85 %, `tournament_service` ≥ 85 %, rutas ≥ 80 %.
+- [x] T118 [P] Actualizar `README.md` de la raíz añadiendo enlace a [quickstart.md](./quickstart.md) de 002 y resumen del flujo MVP.
+- [x] T119 [P] Ejecutar `pytest --cov=app --cov-report=term-missing` en `backend/` y adjuntar el informe. Objetivo mínimo razonable por módulo: `calendar_service` ≥ 95 %, `standings_service` ≥ 95 %, `match_service` ≥ 85 %, `tournament_service` ≥ 85 %, rutas ≥ 80 %.
 - [ ] T120 [P] Ejecutar `npm run test:coverage` en `frontend/` y adjuntar el informe. Objetivo: `usePolling` ≥ 95 %, `TournamentDetail`/`MatchDetail` ≥ 80 %.
-- [ ] T121 [P] Revisión de autorización transversal (OWASP API1/API3): grep por cada endpoint de `backend/app/api/routes/{tournaments,matches,notifications}.py` verificando que se usa la dependency `get_current_user` y que el servicio filtra por ownership; 404 (no 403) para recursos no visibles al usuario para no filtrar existencia.
-- [ ] T122 [P] Revisión de serialización de `tournament_code`: grep confirma que el campo sólo se emite cuando el lector es `organizer_id` o uno de `{player1_id.user_id, player2_id.user_id}`. Test ya cubre (T074) — aquí se documenta y se verifica manualmente la ruta del filtro.
-- [ ] T123 [P] Property-test extra de `calendar_service`: script `backend/tests/unit/test_calendar_service.py::test_round_robin_completeness_for_N_up_to_16` que itera `N ∈ {2..16}` y verifica propiedad de completeness y fairness-bye en todos. Complementa los ejemplos puntuales de US1.
+- [x] T121 [P] Revisión de autorización transversal (OWASP API1/API3): grep por cada endpoint de `backend/app/api/routes/{tournaments,matches,notifications}.py` verificando que se usa la dependency `get_current_user` y que el servicio filtra por ownership; 404 (no 403) para recursos no visibles al usuario para no filtrar existencia.
+- [x] T122 [P] Revisión de serialización de `tournament_code`: grep confirma que el campo sólo se emite cuando el lector es `organizer_id` o uno de `{player1_id.user_id, player2_id.user_id}`. Test ya cubre (T074) — aquí se documenta y se verifica manualmente la ruta del filtro.
+- [x] T123 [P] Property-test extra de `calendar_service`: script `backend/tests/unit/test_calendar_service.py::test_round_robin_completeness_for_N_up_to_16` que itera `N ∈ {2..16}` y verifica propiedad de completeness y fairness-bye en todos. Complementa los ejemplos puntuales de US1.
 - [ ] T124 Validación manual de quickstart: ejecutar el flujo de [quickstart.md § Flujo TDD por user story](./quickstart.md) en un entorno limpio (levantar Postgres local + backend + frontend) y confirmar que el flujo completo US1 → US3 → US4 → US5 → US6 funciona end-to-end.
-- [ ] T125 Checklist de Constitución: revisar `research.md § CVE Audit` (sin deps nuevas instaladas → sigue vigente), Principio II (grep: no hay commits con código productivo previos a su test), Principio III (todas las decisiones técnicas con fuente), Principio IV (sin sustituciones de stack), Principio V (ningún import runtime referencia `prompts/`).
+- [x] T125 Checklist de Constitución: revisar `research.md § CVE Audit` (sin deps nuevas instaladas → sigue vigente), Principio II (grep: no hay commits con código productivo previos a su test), Principio III (todas las decisiones técnicas con fuente), Principio IV (sin sustituciones de stack), Principio V (ningún import runtime referencia `prompts/`).
 
 ---
 

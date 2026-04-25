@@ -5,6 +5,9 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from app.api.routes.auth import limiter
 from app.api.routes.auth import router as auth_router
+from app.api.routes.matches import router as matches_router
+from app.api.routes.notifications import router as notifications_router
+from app.api.routes.tournaments import router as tournaments_router
 from app.core.config import get_settings
 
 
@@ -37,11 +40,14 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=_build_allowed_origins(settings),
         allow_credentials=True,
-        allow_methods=["GET", "POST"],
+        allow_methods=["GET", "POST", "PATCH", "DELETE"],
         allow_headers=["Content-Type"],
     )
 
     app.include_router(auth_router)
+    app.include_router(tournaments_router)
+    app.include_router(matches_router)
+    app.include_router(notifications_router)
     return app
 
 
