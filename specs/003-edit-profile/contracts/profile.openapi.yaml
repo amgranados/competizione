@@ -1,0 +1,472 @@
+openapi: 3.0.3
+info:
+  title: Profile API
+  version: 0.1.0
+  description: |
+    Endpoints de la sección "Perfil" del usuario autenticado.
+    Cubre lectura del perfil con datos LoL en tiempo real,
+    edición de nickname / contraseña / avatar,
+    vinculación y desvinculación de cuenta de League of Legends,
+    y eliminación (anonimización) de la cuenta.
+
+    Todas las rutas son **autenticadas**: requieren la cookie
+    de sesión emitida por 001-user-auth (HttpOnly, Secure,
+    SameSite=lax). La autorización es siempre "el usuario sobre
+    sí mismo": no existe edición de perfil de terceros.
+
+servers:
+  - url: /api
+
+paths:
+  /profile:
+    get:
+      summary: Obtener el perfil del usuario autenticado
+      description: |
+        Devuelve datos básicos (nickname, avatar, juegos vinculados)
+        y, si hay LoL vinculado, datos públicos consultados en
+        tiempo real a Riot. Las secciones LoL son independientes:
+        cualquiera puede llegar como `null + unavailable: true`
+        sin tirar el resto (ver HD-3 en research.md).
+      tags: [profile]
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /profile/nickname:
+    patch:
+      summary: Cambiar el nickname del usuario autenticado
+      tags: [profile]
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateNickname"
+      responses:
+        "200":
+          description: Nickname actualizado (o no-op si coincide con el actual)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileBasic"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: Nickname ya en uso por otro usuario
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+
+  /profile/password:
+    patch:
+      summary: Cambiar la contraseña del usuario autenticado
+      description: |
+        Tras éxito, todas las sesiones del usuario distintas de la
+        actual quedan invalidadas (HD-5). La sesión actual permanece
+        válida y recibe nuevas cookies rotadas.
+      tags: [profile]
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePassword"
+      responses:
+        "204":
+          description: Contraseña actualizada (sin body); cookies de sesión rotadas
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /profile/avatar:
+    patch:
+      summary: Cambiar la URL del avatar del usuario autenticado
+      description: |
+        Solo se valida que el valor sea una URL bien formada
+        (Pydantic HttpUrl, esquemas http/https). El backend NO
+        descarga la imagen ni valida su contenido.
+      tags: [profile]
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAvatar"
+      responses:
+        "200":
+          description: Avatar actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileBasic"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /profile/link/lol:
+    post:
+      summary: Vincular cuenta de League of Legends
+      description: |
+        Recibe Riot ID (`game_name`#`tag_line`) y `region`. Llama a
+        Riot para resolver el PUUID, descarta las credenciales
+        recibidas y persiste solo `puuid` + `region` en
+        `riot_accounts` (HD-6). Cualquier fallo de identidad o
+        autenticación con Riot devuelve un mensaje genérico
+        (FR-013, SC-008). Fallos de disponibilidad de Riot
+        devuelven 503.
+      tags: [profile, riot]
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LinkRiotAccount"
+      responses:
+        "201":
+          description: Cuenta de LoL vinculada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LinkedGameSummary"
+        "400":
+          description: |
+            Riot ID inválido, región no soportada o cualquier fallo
+            de identidad/autenticación con Riot. Mensaje único genérico.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: |
+            El usuario ya tiene una cuenta de LoL vinculada (debe
+            desvincularla antes), o el PUUID resultante ya pertenece
+            a otra cuenta del sistema.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+        "503":
+          description: Riot API no disponible temporalmente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+
+    delete:
+      summary: Desvincular la cuenta de League of Legends
+      description: |
+        Bloqueado si el usuario participa en algún torneo de LoL
+        en estados `open` (Inscripción abierta) o `in_progress`
+        (En curso). FR-014 (reactiva FR-004 de 002).
+      tags: [profile, riot]
+      security:
+        - sessionCookie: []
+      responses:
+        "204":
+          description: Cuenta desvinculada
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: El usuario no tiene cuenta de LoL vinculada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+        "409":
+          description: El usuario participa en un torneo activo del juego
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+
+  /profile/me:
+    delete:
+      summary: Eliminar (anonimizar) la cuenta del usuario autenticado
+      description: |
+        Requiere confirmación textual exacta = nickname actual del
+        usuario (HD-2). Bloqueado si el usuario participa en algún
+        torneo activo (FR-023). Tras éxito, la fila de `users` queda
+        anonimizada (HD-4): email a NULL, nickname a `deleted-XXXXXXXX`,
+        password_hash a sentinel, deleted_at a now(); las refresh
+        tokens activas se añaden a la blacklist y la sesión se cierra
+        (cookie clear).
+      tags: [profile]
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeleteAccountConfirm"
+      responses:
+        "204":
+          description: Cuenta anonimizada y sesión cerrada
+        "400":
+          description: La cadena de confirmación no coincide con el nickname actual
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: El usuario participa en al menos un torneo activo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: access_token
+
+  responses:
+    Unauthorized:
+      description: Sesión inválida o ausente
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorDetail"
+    ValidationError:
+      description: Datos de entrada inválidos (formato, restricciones)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorDetail"
+
+  schemas:
+    ErrorDetail:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          type: string
+
+    ProfileBasic:
+      type: object
+      required: [id, nickname, avatar_url, linked_games]
+      properties:
+        id:
+          type: string
+          format: uuid
+        nickname:
+          type: string
+        email:
+          type: string
+          format: email
+          nullable: true
+        avatar_url:
+          type: string
+          format: uri
+          nullable: true
+        linked_games:
+          type: array
+          items:
+            $ref: "#/components/schemas/LinkedGameSummary"
+
+    LinkedGameSummary:
+      type: object
+      required: [game, region, linked_at]
+      properties:
+        game:
+          type: string
+          enum: [lol]
+        region:
+          type: string
+          enum: [EUW1, EUN1, NA1, KR, BR1, LA1, LA2, OC1, JP1, RU, TR1]
+        linked_at:
+          type: string
+          format: date-time
+
+    ProfileResponse:
+      allOf:
+        - $ref: "#/components/schemas/ProfileBasic"
+        - type: object
+          properties:
+            lol_stats:
+              $ref: "#/components/schemas/LoLStatsResponse"
+              nullable: true
+
+    LoLStatsResponse:
+      type: object
+      description: |
+        Cada sección puede venir como `null` con `unavailable: true`
+        si la llamada a Riot falló para esa sección (HD-3).
+      properties:
+        summoner:
+          $ref: "#/components/schemas/SummonerSection"
+        ranked:
+          $ref: "#/components/schemas/RankedSection"
+        mastery:
+          $ref: "#/components/schemas/MasterySection"
+        recent_matches:
+          $ref: "#/components/schemas/MatchesSection"
+
+    SummonerSection:
+      type: object
+      properties:
+        unavailable:
+          type: boolean
+          default: false
+        data:
+          type: object
+          nullable: true
+          properties:
+            summoner_level: { type: integer }
+            region: { type: string }
+
+    RankedSection:
+      type: object
+      properties:
+        unavailable:
+          type: boolean
+          default: false
+        solo_duo:
+          $ref: "#/components/schemas/RankedEntry"
+          nullable: true
+        flex:
+          $ref: "#/components/schemas/RankedEntry"
+          nullable: true
+
+    RankedEntry:
+      type: object
+      required: [queue_type, tier, league_points, wins, losses]
+      properties:
+        queue_type:
+          type: string
+          enum: [RANKED_SOLO_5x5, RANKED_FLEX_SR]
+        tier: { type: string }
+        rank: { type: string }
+        league_points: { type: integer }
+        wins: { type: integer }
+        losses: { type: integer }
+
+    MasterySection:
+      type: object
+      properties:
+        unavailable:
+          type: boolean
+          default: false
+        data:
+          type: array
+          nullable: true
+          items:
+            $ref: "#/components/schemas/ChampionMastery"
+
+    ChampionMastery:
+      type: object
+      required: [champion_id, champion_level, champion_points]
+      properties:
+        champion_id: { type: integer }
+        champion_level: { type: integer }
+        champion_points: { type: integer }
+
+    MatchesSection:
+      type: object
+      properties:
+        unavailable:
+          type: boolean
+          default: false
+        data:
+          type: array
+          nullable: true
+          items:
+            $ref: "#/components/schemas/MatchSummary"
+
+    MatchSummary:
+      type: object
+      required: [match_id, played_at, duration_seconds, champion_id, kills, deaths, assists, win, queue]
+      properties:
+        match_id: { type: string }
+        played_at: { type: string, format: date-time }
+        duration_seconds: { type: integer }
+        champion_id: { type: integer }
+        kills: { type: integer }
+        deaths: { type: integer }
+        assists: { type: integer }
+        win: { type: boolean }
+        queue: { type: string }
+
+    UpdateNickname:
+      type: object
+      required: [nickname]
+      properties:
+        nickname:
+          type: string
+          minLength: 3
+          maxLength: 32
+
+    UpdatePassword:
+      type: object
+      required: [current_password, new_password]
+      properties:
+        current_password:
+          type: string
+          description: |
+            La contraseña actual. Se exige re-autenticación implícita
+            para evitar cambios indebidos si la sesión queda comprometida
+            sin la cookie expuesta (defensa en profundidad).
+        new_password:
+          type: string
+          minLength: 8
+
+    UpdateAvatar:
+      type: object
+      required: [avatar_url]
+      properties:
+        avatar_url:
+          type: string
+          format: uri
+          nullable: true
+          description: |
+            URL HTTP/HTTPS apuntando a la imagen. `null` borra
+            la foto actual y restaura el avatar por defecto.
+
+    LinkRiotAccount:
+      type: object
+      required: [game_name, tag_line, region]
+      properties:
+        game_name:
+          type: string
+          description: Parte antes de `#` del Riot ID
+        tag_line:
+          type: string
+          description: Parte después de `#` del Riot ID
+        region:
+          type: string
+          enum: [EUW1, EUN1, NA1, KR, BR1, LA1, LA2, OC1, JP1, RU, TR1]
+
+    DeleteAccountConfirm:
+      type: object
+      required: [confirmation]
+      properties:
+        confirmation:
+          type: string
+          description: Debe coincidir exactamente con el nickname actual del usuario (HD-2)
