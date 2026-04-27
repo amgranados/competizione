@@ -21,6 +21,7 @@ class AuthenticatedUser(BaseModel):
     id: uuid.UUID
     email: EmailStr
     nickname: str
+    avatar_url: str | None = None
 
 
 class ErrorResponse(BaseModel):

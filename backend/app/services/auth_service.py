@@ -153,6 +153,14 @@ async def refresh_session(session: AsyncSession, refresh_cookie: str | None) -> 
     if user is None:
         raise InvalidCredentials
 
+    # HD-5: reject refresh tokens issued before the most recent password change.
+    pwd_changed = user.password_changed_at
+    if pwd_changed is not None:
+        if pwd_changed.tzinfo is None:
+            pwd_changed = pwd_changed.replace(tzinfo=timezone.utc)
+        if payload.get("iat", 0) < int(pwd_changed.timestamp()):
+            raise InvalidCredentials
+
     await _blacklist_jti(session, jti=jti, user_id=subject, exp_timestamp=payload["exp"])
 
     access_token, _ = security.create_access_token(subject=str(subject))

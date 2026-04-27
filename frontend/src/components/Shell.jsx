@@ -8,6 +8,7 @@ import Icon from "./ui/Icon.jsx";
 const NAV_ITEMS = [
   { label: "Dashboard", to: "/dashboard", icon: "layout" },
   { label: "Torneos", to: "/dashboard", icon: "trophy" },
+  { label: "Perfil", to: "/profile", icon: "user" },
 ];
 
 export default function Shell({ title, subtitle, back, actions, children }) {
@@ -114,7 +115,7 @@ function Sidebar({ user, onLogout }) {
             gap: 10,
           }}
         >
-          <Ava name={user.nickname} size={30} ring />
+          <Ava name={user.nickname} size={30} ring src={user.avatar_url} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div
               style={{
@@ -299,7 +300,7 @@ function TopBar({ title, subtitle, back, actions, unread, user }) {
             />
           )}
         </div>
-        {user && <Ava name={user.nickname} size={34} ring />}
+        {user && <Ava name={user.nickname} size={34} ring src={user.avatar_url} />}
       </div>
     </header>
   );

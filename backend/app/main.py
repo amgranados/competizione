@@ -7,6 +7,7 @@ from app.api.routes.auth import limiter
 from app.api.routes.auth import router as auth_router
 from app.api.routes.matches import router as matches_router
 from app.api.routes.notifications import router as notifications_router
+from app.api.routes.profile import router as profile_router
 from app.api.routes.tournaments import router as tournaments_router
 from app.core.config import get_settings
 
@@ -48,6 +49,7 @@ def create_app() -> FastAPI:
     app.include_router(tournaments_router)
     app.include_router(matches_router)
     app.include_router(notifications_router)
+    app.include_router(profile_router)
     return app
 
 
