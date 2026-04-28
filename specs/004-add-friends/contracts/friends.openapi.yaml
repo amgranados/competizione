@@ -1,0 +1,328 @@
+openapi: 3.0.3
+info:
+  title: Friends API
+  version: 0.1.0
+  description: |
+    Endpoints de la sección "Amigos". Cubre búsqueda de usuarios por
+    nickname, visualización de perfil ajeno (en `Profile API` mediante
+    `GET /api/profile/{nickname}`), envío/aceptación/rechazo/eliminación
+    de relaciones de amistad y listado de solicitudes recibidas
+    (sin UI asignada en esta iteración).
+
+    Todas las rutas son **autenticadas**: requieren la cookie
+    de sesión emitida por 001-user-auth (HttpOnly, Secure,
+    SameSite=lax). La autorización es siempre "el usuario sobre
+    sí mismo" o "el destinatario de la solicitud" según el caso.
+
+servers:
+  - url: /api
+
+paths:
+  /friends/search:
+    get:
+      summary: Buscar usuarios por nickname (parcial, case-insensitive)
+      description: |
+        Devuelve hasta 20 usuarios cuyo `nickname` contiene la cadena
+        `q` (ILIKE %q%). Excluye al usuario autenticado y a usuarios
+        anonimizados (`deleted_at IS NOT NULL`). Si `q` está vacío
+        tras `strip()` devuelve `[]` (no es error).
+      tags: [friends]
+      security:
+        - sessionCookie: []
+      parameters:
+        - in: query
+          name: q
+          required: false
+          schema:
+            type: string
+            maxLength: 64
+          description: Subcadena a buscar dentro del nickname.
+      responses:
+        "200":
+          description: Lista de resultados (puede ser vacía)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserSearchResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /friends/request/{user_id}:
+    post:
+      summary: Enviar solicitud de amistad a otro usuario
+      description: |
+        Crea una fila `pending` en `friendships`. Bloqueado si ya
+        existe una relación (pending o accepted) en cualquier
+        dirección entre los dos usuarios (HD-3). Bloqueado si
+        `user_id == current_user.id` (FR-014).
+      tags: [friends]
+      security:
+        - sessionCookie: []
+      parameters:
+        - in: path
+          name: user_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "201":
+          description: Solicitud creada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FriendRequestResponse"
+        "400":
+          description: Auto-solicitud o user_id inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: El usuario no existe o está anonimizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+        "409":
+          description: |
+            Ya existe relación entre los dos (amigos, pendiente
+            misma dirección o pendiente cruzada). El mensaje del
+            body distingue cuál de los tres casos es para que el
+            frontend pueda guiar al usuario.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+
+  /friends/request/{request_id}/accept:
+    post:
+      summary: Aceptar una solicitud de amistad recibida
+      description: |
+        El usuario autenticado debe ser el `addressee_id` de la
+        solicitud `pending` con id = `request_id`. Cambia el status
+        de la fila a `accepted` (UPDATE, no INSERT — HD-2).
+      tags: [friends]
+      security:
+        - sessionCookie: []
+      parameters:
+        - in: path
+          name: request_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Solicitud aceptada; ahora sois amigos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FriendRequestActionResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: La solicitud no es para ti
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+        "404":
+          description: La solicitud no existe o ya no está pendiente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+
+  /friends/request/{request_id}/reject:
+    post:
+      summary: Rechazar una solicitud de amistad recibida
+      description: |
+        Mismas precondiciones que `accept`. Borra la fila (DELETE);
+        el remitente vuelve a ver "Añadir amigo" en sus vistas.
+      tags: [friends]
+      security:
+        - sessionCookie: []
+      parameters:
+        - in: path
+          name: request_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Solicitud rechazada y descartada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FriendRequestActionResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: La solicitud no es para ti
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+        "404":
+          description: La solicitud no existe o ya no está pendiente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+
+  /friends/{user_id}:
+    delete:
+      summary: Eliminar amistad con otro usuario (bidireccional)
+      description: |
+        Borra la única fila `accepted` que une a `current_user` y
+        `user_id` en cualquier dirección (HD-4). Ambos lados
+        pierden la amistad simultáneamente.
+      tags: [friends]
+      security:
+        - sessionCookie: []
+      parameters:
+        - in: path
+          name: user_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Amistad eliminada
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: No sois amigos (no hay fila `accepted`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+
+  /friends/requests:
+    get:
+      summary: Listar solicitudes de amistad recibidas pendientes
+      description: |
+        Devuelve las filas `pending` cuyo `addressee_id` es el
+        usuario autenticado. Filtra solicitudes cuyo remitente esté
+        anonimizado (HD-5). En esta iteración el endpoint existe
+        pero no tiene UI asignada.
+      tags: [friends]
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Lista de solicitudes pendientes (puede ser vacía)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FriendRequestResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: access_token
+
+  responses:
+    Unauthorized:
+      description: Sesión inválida o ausente
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorDetail"
+
+  schemas:
+    ErrorDetail:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          type: string
+
+    FriendshipStatus:
+      type: string
+      enum:
+        - SIN_RELACION
+        - PENDIENTE_ENVIADA
+        - PENDIENTE_RECIBIDA
+        - AMIGO
+      description: |
+        Estado de la relación entre el usuario autenticado y un
+        usuario objetivo. Calculado por el backend en cada consulta
+        relevante (HD-1).
+
+    UserSearchResult:
+      type: object
+      required: [id, nickname, avatar_url, relationship_status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        nickname:
+          type: string
+        avatar_url:
+          type: string
+          format: uri
+          nullable: true
+        relationship_status:
+          $ref: "#/components/schemas/FriendshipStatus"
+
+    FriendRequestResponse:
+      type: object
+      required:
+        - id
+        - requester_id
+        - addressee_id
+        - requester_nickname
+        - requester_avatar_url
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Id de la fila en `friendships` (PK)
+        requester_id:
+          type: string
+          format: uuid
+        addressee_id:
+          type: string
+          format: uuid
+        requester_nickname:
+          type: string
+          description: Conveniencia para el panel principal (futuro)
+        requester_avatar_url:
+          type: string
+          format: uri
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    FriendRequestActionResult:
+      type: object
+      required: [request_id, action, relationship_status]
+      properties:
+        request_id:
+          type: string
+          format: uuid
+        action:
+          type: string
+          enum: [accepted, rejected]
+        relationship_status:
+          $ref: "#/components/schemas/FriendshipStatus"
+          description: |
+            Nuevo estado entre el usuario autenticado y el
+            remitente original de la solicitud. `AMIGO` tras
+            `accepted`; `SIN_RELACION` tras `rejected`.
