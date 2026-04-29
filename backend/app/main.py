@@ -5,6 +5,7 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from app.api.routes.auth import limiter
 from app.api.routes.auth import router as auth_router
+from app.api.routes.friends import router as friends_router
 from app.api.routes.matches import router as matches_router
 from app.api.routes.notifications import router as notifications_router
 from app.api.routes.profile import router as profile_router
@@ -50,6 +51,7 @@ def create_app() -> FastAPI:
     app.include_router(matches_router)
     app.include_router(notifications_router)
     app.include_router(profile_router)
+    app.include_router(friends_router)
     return app
 
 

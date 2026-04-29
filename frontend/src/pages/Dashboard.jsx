@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { tournamentApi } from "../api/tournamentApi.js";
+import { friendsApi } from "../api/friendsApi.js";
 import { useAuth } from "../hooks/useAuth.js";
 import { useNotifications } from "../context/NotificationContext.jsx";
 import Shell from "../components/Shell.jsx";
 import Card from "../components/ui/Card.jsx";
+import UserSearchBar from "../components/UserSearchBar.jsx";
 import Btn from "../components/ui/Btn.jsx";
 import Input from "../components/ui/Input.jsx";
 import Tag from "../components/ui/Tag.jsx";
@@ -37,6 +39,7 @@ export default function Dashboard() {
   const { notifications } = useNotifications();
   const [tournaments, setTournaments] = useState([]);
   const [invitations, setInvitations] = useState([]);
+  const [friendRequests, setFriendRequests] = useState([]);
   const [name, setName] = useState("");
   const [format, setFormat] = useState("round_robin");
   const [creating, setCreating] = useState(false);
@@ -44,12 +47,14 @@ export default function Dashboard() {
   const navigate = useNavigate();
 
   const refresh = useCallback(async () => {
-    const [t, inv] = await Promise.all([
+    const [t, inv, fr] = await Promise.all([
       tournamentApi.listMine(),
       tournamentApi.listMyInvitations("pending"),
+      friendsApi.getReceivedRequests().catch(() => []),
     ]);
     setTournaments(t);
     setInvitations(inv);
+    setFriendRequests(fr);
   }, []);
 
   useEffect(() => {
@@ -88,8 +93,21 @@ export default function Dashboard() {
     await refresh();
   };
 
+  const acceptFriendRequest = async (requestId) => {
+    await friendsApi.acceptRequest(requestId);
+    await refresh();
+  };
+  const rejectFriendRequest = async (requestId) => {
+    await friendsApi.rejectRequest(requestId);
+    await refresh();
+  };
+
   return (
-    <Shell title="Dashboard" subtitle={`HOLA, ${user?.nickname?.toUpperCase() ?? ""}`}>
+    <Shell
+      title="Dashboard"
+      subtitle={`HOLA, ${user?.nickname?.toUpperCase() ?? ""}`}
+      actions={<UserSearchBar />}
+    >
       {/* Stats */}
       <div
         style={{
@@ -104,6 +122,70 @@ export default function Dashboard() {
         <StatCard label="Pre-inicio" value={stats.drafts} />
         <StatCard label="Finalizados" value={stats.finished} />
       </div>
+
+      {/* Pending friend requests */}
+      {friendRequests.length > 0 && (
+        <section style={{ marginBottom: 24 }}>
+          <SectionTitle>Solicitudes de amistad</SectionTitle>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {friendRequests.map((req) => (
+              <Card key={req.id} hoverable={false}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <Link
+                    to={`/users/${encodeURIComponent(req.requester_nickname)}`}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      textDecoration: "none",
+                      color: "inherit",
+                      minWidth: 0,
+                    }}
+                  >
+                    <Icon name="user" size={16} color={T.ac} />
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>
+                        {req.requester_nickname}
+                      </div>
+                      <div
+                        style={{
+                          fontFamily: T.fM,
+                          fontSize: 10,
+                          letterSpacing: 1,
+                          color: T.tx3,
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        quiere ser tu amigo · {new Date(req.created_at).toLocaleString()}
+                      </div>
+                    </div>
+                  </Link>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <Btn size="sm" onClick={() => acceptFriendRequest(req.id)}>
+                      <Icon name="check" size={12} /> Aceptar
+                    </Btn>
+                    <Btn
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => rejectFriendRequest(req.id)}
+                    >
+                      <Icon name="x" size={12} /> Rechazar
+                    </Btn>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Pending invitations */}
       {invitations.length > 0 && (

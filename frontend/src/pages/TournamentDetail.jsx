@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { tournamentApi } from "../api/tournamentApi.js";
+import { friendsApi } from "../api/friendsApi.js";
 import { useAuth } from "../hooks/useAuth.js";
 import { useTournament, useTournamentSchedule } from "../hooks/useTournament.js";
 import Shell from "../components/Shell.jsx";
@@ -39,6 +40,7 @@ export default function TournamentDetail() {
   const { data: schedule, refresh: refreshSchedule } = useTournamentSchedule(tournamentId);
   const [invitations, setInvitations] = useState([]);
   const [invitedUserId, setInvitedUserId] = useState("");
+  const [invitableFriends, setInvitableFriends] = useState([]);
   const [actionError, setActionError] = useState(null);
   const [standings, setStandings] = useState(null);
   const [editing, setEditing] = useState(false);
@@ -59,6 +61,23 @@ export default function TournamentDetail() {
   useEffect(() => {
     reloadInvitations();
   }, [reloadInvitations, tournament?.state]);
+
+  const reloadInvitableFriends = useCallback(async () => {
+    if (!isOrganizer || !canEdit) {
+      setInvitableFriends([]);
+      return;
+    }
+    try {
+      const friends = await friendsApi.getInvitable();
+      setInvitableFriends(friends);
+    } catch {
+      setInvitableFriends([]);
+    }
+  }, [isOrganizer, canEdit]);
+
+  useEffect(() => {
+    reloadInvitableFriends();
+  }, [reloadInvitableFriends, invitations]);
 
   useEffect(() => {
     if (!tournament) return;
@@ -328,6 +347,18 @@ export default function TournamentDetail() {
           {isOrganizer && canEdit && (
             <Card hoverable={false}>
               <SectionHeader title="Invitar" />
+              <p
+                style={{
+                  fontFamily: T.fM,
+                  fontSize: 10,
+                  letterSpacing: 1,
+                  color: T.tx3,
+                  textTransform: "uppercase",
+                  marginBottom: 10,
+                }}
+              >
+                Solo amigos con cuenta de LoL vinculada
+              </p>
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -339,15 +370,34 @@ export default function TournamentDetail() {
                 }}
                 style={{ display: "flex", flexDirection: "column", gap: 10 }}
               >
-                <Field label="User ID del invitado">
-                  <input
-                    placeholder="UUID del jugador"
-                    value={invitedUserId}
-                    onChange={(e) => setInvitedUserId(e.target.value)}
-                    style={inputStyle}
-                  />
+                <Field label="Amigo">
+                  {invitableFriends.length === 0 ? (
+                    <p
+                      style={{
+                        fontSize: 12,
+                        color: T.tx3,
+                        margin: 0,
+                      }}
+                    >
+                      No tienes amigos con LoL vinculado disponibles para
+                      invitar.
+                    </p>
+                  ) : (
+                    <select
+                      value={invitedUserId}
+                      onChange={(e) => setInvitedUserId(e.target.value)}
+                      style={inputStyle}
+                    >
+                      <option value="">Selecciona un amigo…</option>
+                      {invitableFriends.map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {f.nickname}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </Field>
-                <Btn type="submit" size="sm">
+                <Btn type="submit" size="sm" disabled={!invitedUserId}>
                   <Icon name="plus" size={12} /> Enviar invitación
                 </Btn>
               </form>

@@ -19,4 +19,6 @@ export const profileApi = {
   unlinkLoL: () => request("/api/profile/link/lol", { method: "DELETE" }),
   deleteAccount: (confirmation) =>
     request("/api/profile/me", { method: "DELETE", body: { confirmation } }),
+  getPublicProfile: (nickname) =>
+    request(`/api/profile/${encodeURIComponent(nickname)}`),
 };

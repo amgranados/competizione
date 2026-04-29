@@ -23,6 +23,7 @@ async def create_notification(
     tournament_id: uuid.UUID | None = None,
     match_id: uuid.UUID | None = None,
     invitation_id: uuid.UUID | None = None,
+    friendship_id: uuid.UUID | None = None,
 ) -> Notification:
     notif = Notification(
         user_id=user_id,
@@ -30,6 +31,7 @@ async def create_notification(
         tournament_id=tournament_id,
         match_id=match_id,
         invitation_id=invitation_id,
+        friendship_id=friendship_id,
     )
     session.add(notif)
     await session.flush()

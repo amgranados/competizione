@@ -470,3 +470,104 @@ async def test_delete_link_lol_returns_409_when_active_tournament(async_client, 
     response = await async_client.delete("/api/profile/link/lol")
 
     assert response.status_code == 409
+
+
+# ===== US1 (004) — GET /api/profile/{nickname} (public profile) =========
+
+
+@pytest.mark.asyncio
+async def test_get_public_profile_returns_200_for_existing_user(async_client):
+    bob = await register_user(async_client, "bob@example.com", "bob")
+    await register_user(async_client, "alice@example.com", "alice")
+
+    response = await async_client.get("/api/profile/bob")
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["id"] == bob["id"]
+    assert body["nickname"] == "bob"
+    assert "email" not in body
+    assert body["relationship_status"] == "SIN_RELACION"
+    assert body["linked_games"] == []
+
+
+@pytest.mark.asyncio
+async def test_get_public_profile_returns_404_for_unknown_user(async_client):
+    await register_user(async_client, "alice@example.com", "alice")
+    response = await async_client.get("/api/profile/no-existe")
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_public_profile_returns_404_for_anonymized_user(async_client, db_session):
+    """A user with deleted_at set must be invisible from /api/profile/{nickname}."""
+    bob = await register_user(async_client, "bob@example.com", "bob")
+    await register_user(async_client, "alice@example.com", "alice")
+
+    # Anonymize bob via direct DB write
+    from datetime import datetime, timezone
+    from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+    from app.models.user import User as UserModel
+
+    factory = async_sessionmaker(db_session.bind, class_=AsyncSession, expire_on_commit=False)
+    async with factory() as session:
+        import uuid as uuid_mod
+        bob_id = uuid_mod.UUID(bob["id"])
+        u = await session.get(UserModel, bob_id)
+        u.nickname = "deleted-AAAAAAAA"
+        u.deleted_at = datetime.now(timezone.utc)
+        await session.commit()
+
+    response = await async_client.get("/api/profile/deleted-AAAAAAAA")
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_public_profile_requires_authentication(async_client):
+    async_client.cookies.clear()
+    response = await async_client.get("/api/profile/somebody")
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_get_public_profile_includes_lol_stats_when_target_linked(
+    async_client, riot_mock
+):
+    bob = await register_user(async_client, "bob@example.com", "bob")
+    riot_mock.configured_puuids[("Faker", "KR1")] = "PUUID-FAKER"
+    riot_mock.configured_summoner["PUUID-FAKER"] = SummonerProfile(
+        summoner_level=300, profile_icon_id=1, region="asia"
+    )
+    riot_mock.configured_mastery["PUUID-FAKER"] = [
+        ChampionMastery(champion_id=1, champion_level=7, champion_points=100000),
+    ]
+    link = await async_client.post(
+        "/api/profile/link/lol",
+        json={"game_name": "Faker", "tag_line": "KR1", "region": "KR"},
+    )
+    assert link.status_code == 201, link.text
+
+    await register_user(async_client, "alice@example.com", "alice")
+    response = await async_client.get("/api/profile/bob")
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["nickname"] == "bob"
+    assert len(body["linked_games"]) == 1, body
+    lol = body["linked_games"][0]
+    assert lol["game"] == "lol"
+    assert lol["summoner_level"] == 300
+    assert lol["masteries"][0]["champion_id"] == 1
+
+
+@pytest.mark.asyncio
+async def test_get_public_profile_relationship_status_after_send_request(async_client):
+    bob = await register_user(async_client, "bob@example.com", "bob")
+    alice = await register_user(async_client, "alice@example.com", "alice")
+    switch_user(async_client, alice)
+
+    await async_client.post(f"/api/friends/request/{bob['id']}")
+    response = await async_client.get("/api/profile/bob")
+
+    assert response.status_code == 200
+    assert response.json()["relationship_status"] == "PENDIENTE_ENVIADA"

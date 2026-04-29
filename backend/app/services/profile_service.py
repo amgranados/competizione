@@ -186,6 +186,52 @@ async def get_profile(
     )
 
 
+async def get_public_profile(
+    session: AsyncSession,
+    *,
+    nickname: str,
+    current_user_id: uuid.UUID,
+    riot_client=None,
+):
+    """Return the public profile payload for another user (004-add-friends).
+
+    Same composition as `get_profile` (linked_games + LoL data) but:
+    - `email` is NEVER included.
+    - `relationship_status` is computed vs `current_user_id` (HD-1).
+    - Anonymized users (`deleted_at` IS NOT NULL) are not addressable -> 404.
+    """
+    # Local import to avoid a circular dependency at module-load time
+    # (friends_service imports nothing from profile_service, but profile_service
+    # is imported eagerly via main.py — so the lazy import is the safe path).
+    from app.schemas.friends import PublicProfileResponse
+    from app.services import friends_service
+
+    stmt = select(User).where(User.nickname == nickname, User.deleted_at.is_(None))
+    user = (await session.execute(stmt)).scalar_one_or_none()
+    if user is None:
+        raise UserNotFound
+
+    riot_account = await _load_riot_account(session, user.id)
+    linked_games: list[LinkedGameSummary] = []
+    if riot_account is not None:
+        linked_games.append(await _build_lol_summary(riot_account, riot_client))
+
+    relationship_status, pending_request_id = (
+        await friends_service.compute_relationship_state(
+            session, current_user_id, user.id
+        )
+    )
+
+    return PublicProfileResponse(
+        id=user.id,
+        nickname=user.nickname,
+        avatar_url=user.avatar_url,
+        linked_games=linked_games,
+        relationship_status=relationship_status,
+        pending_request_id=pending_request_id,
+    )
+
+
 # --- Edit APIs (US1) ----------------------------------------------------
 
 async def update_nickname(session: AsyncSession, user_id: uuid.UUID, new_nickname: str) -> User:

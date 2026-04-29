@@ -196,7 +196,34 @@ async def invite(
 
     # Ensure invitee exists
     invitee = await session.get(User, invited_user_id)
-    if invitee is None:
+    if invitee is None or invitee.deleted_at is not None:
+        raise InvitationConflict()
+
+    # 004-add-friends: only friends with linked LoL account can be invited.
+    from app.models.friendship import Friendship
+    from app.models.riot_account import RiotAccount
+    from sqlalchemy import and_, or_
+
+    friendship_stmt = select(Friendship.id).where(
+        Friendship.status == "accepted",
+        or_(
+            and_(
+                Friendship.requester_id == inviter_id,
+                Friendship.addressee_id == invited_user_id,
+            ),
+            and_(
+                Friendship.requester_id == invited_user_id,
+                Friendship.addressee_id == inviter_id,
+            ),
+        ),
+    ).limit(1)
+    if (await session.execute(friendship_stmt)).first() is None:
+        raise InvitationConflict()
+
+    riot_stmt = select(RiotAccount.id).where(
+        RiotAccount.user_id == invited_user_id
+    ).limit(1)
+    if (await session.execute(riot_stmt)).first() is None:
         raise InvitationConflict()
 
     # Already participant?

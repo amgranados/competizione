@@ -11,6 +11,7 @@ from app.core import security
 from app.core.config import get_settings
 from app.db.base import get_db
 from app.models.user import User
+from app.schemas.friends import PublicProfileResponse
 from app.schemas.profile import (
     DeleteAccountConfirm,
     LinkedGameSummary,
@@ -119,6 +120,27 @@ async def patch_avatar(
     avatar_str = str(payload.avatar_url) if payload.avatar_url is not None else None
     user = await profile_service.update_avatar(session, current_user.id, avatar_str)
     return _basic_from_user(user)
+
+
+# ===== US1 (004) — Public profile of another user =======================
+
+
+@router.get("/{nickname}", response_model=PublicProfileResponse)
+async def get_public_profile(
+    nickname: str,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+    riot_client=Depends(get_riot_client),
+) -> PublicProfileResponse:
+    try:
+        return await profile_service.get_public_profile(
+            session,
+            nickname=nickname,
+            current_user_id=current_user.id,
+            riot_client=riot_client,
+        )
+    except profile_service.UserNotFound:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
 
 
 # ===== US2 — Riot account link / unlink =================================

@@ -17,6 +17,8 @@ class NotificationType(str, Enum):
     MATCH_GENERATED = "match_generated"
     MATCH_RESOLVED = "match_resolved"
     TOURNAMENT_FINISHED = "tournament_finished"
+    FRIEND_REQUEST_RECEIVED = "friend_request_received"
+    FRIEND_REQUEST_ACCEPTED = "friend_request_accepted"
 
 
 class Notification(BaseModel):
@@ -28,5 +30,6 @@ class Notification(BaseModel):
     tournament_id: uuid.UUID | None = None
     match_id: uuid.UUID | None = None
     invitation_id: uuid.UUID | None = None
+    friendship_id: uuid.UUID | None = None
     created_at: datetime
     read_at: datetime | None = None

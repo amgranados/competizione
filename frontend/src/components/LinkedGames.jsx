@@ -21,14 +21,49 @@ const PLATFORMS = [
   "JP1",
 ];
 
-export default function LinkedGames({ profile, onUpdated }) {
+export default function LinkedGames({ profile, onUpdated, readOnly = false }) {
   const lolLinked = profile.linked_games?.find((game) => game.game === "lol");
 
-  return lolLinked ? (
-    <LinkedLoL linkedGame={lolLinked} onUpdated={onUpdated} />
-  ) : (
-    <UnlinkedLoL onUpdated={onUpdated} />
-  );
+  if (lolLinked) {
+    return <LinkedLoL linkedGame={lolLinked} onUpdated={onUpdated} readOnly={readOnly} />;
+  }
+  if (readOnly) {
+    return (
+      <Card hoverable={false}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: T.r2,
+              background: T.acD,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: T.ac,
+            }}
+          >
+            <Icon name="trophy" size={20} />
+          </div>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>League of Legends</div>
+            <div
+              style={{
+                fontFamily: T.fM,
+                fontSize: 10,
+                color: T.tx3,
+                letterSpacing: 1,
+                textTransform: "uppercase",
+              }}
+            >
+              Sin cuenta vinculada
+            </div>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+  return <UnlinkedLoL onUpdated={onUpdated} />;
 }
 
 function UnlinkedLoL({ onUpdated }) {
@@ -211,7 +246,7 @@ function RegionSelect({ value, onChange }) {
   );
 }
 
-function LinkedLoL({ linkedGame, onUpdated }) {
+function LinkedLoL({ linkedGame, onUpdated, readOnly = false }) {
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -277,12 +312,14 @@ function LinkedLoL({ linkedGame, onUpdated }) {
             )}
           </div>
         </div>
-        <Btn variant="ghost" size="sm" onClick={onUnlink} disabled={submitting}>
-          <Icon name="x" size={12} />
-          Desvincular
-        </Btn>
+        {!readOnly && (
+          <Btn variant="ghost" size="sm" onClick={onUnlink} disabled={submitting}>
+            <Icon name="x" size={12} />
+            Desvincular
+          </Btn>
+        )}
       </div>
-      {error && (
+      {error && !readOnly && (
         <p
           role="alert"
           style={{

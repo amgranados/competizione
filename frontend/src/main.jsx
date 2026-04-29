@@ -11,6 +11,7 @@ import Dashboard from "./pages/Dashboard.jsx";
 import TournamentDetail from "./pages/TournamentDetail.jsx";
 import MatchDetail from "./pages/MatchDetail.jsx";
 import Profile from "./pages/Profile.jsx";
+import UserProfile from "./pages/UserProfile.jsx";
 import "./styles/global.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
@@ -51,6 +52,14 @@ ReactDOM.createRoot(document.getElementById("root")).render(
               element={
                 <ProtectedRoute>
                   <Profile />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/users/:nickname"
+              element={
+                <ProtectedRoute>
+                  <UserProfile />
                 </ProtectedRoute>
               }
             />
