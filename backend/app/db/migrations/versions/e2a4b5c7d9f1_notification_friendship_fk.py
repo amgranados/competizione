@@ -1,7 +1,7 @@
 """add friendship_id to notifications (004-add-friends, fix #3)
 
 Revision ID: e2a4b5c7d9f1
-Revises: d1f3a2b4c8e0
+Revises: f4b8c1d27e63
 Create Date: 2026-04-29 01:00:00.000000
 
 """
@@ -12,7 +12,7 @@ from alembic import op
 
 
 revision: str = "e2a4b5c7d9f1"
-down_revision: Union[str, Sequence[str], None] = "d1f3a2b4c8e0"
+down_revision: Union[str, Sequence[str], None] = "f4b8c1d27e63"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
