@@ -19,7 +19,10 @@ COPY app ./app
 COPY alembic.ini ./
 COPY pyproject.toml ./
 COPY docker-entrypoint.sh ./
-RUN chmod +x docker-entrypoint.sh
+# Strip any Windows-style CR introduced by `core.autocrlf=true` checkouts —
+# without this the shebang reads `/bin/sh\r` and exec fails with
+# "no such file or directory".
+RUN sed -i 's/\r$//' docker-entrypoint.sh && chmod +x docker-entrypoint.sh
 
 EXPOSE 8000
 
