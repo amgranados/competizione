@@ -1,0 +1,235 @@
+openapi: 3.0.3
+info:
+  title: Competizione — Dashboard API (005)
+  version: "1.0.0"
+  description: >
+    Contrato del endpoint único del dashboard. Todos los datos (saludo, 4 tarjetas de
+    estadísticas, "Mis torneos" y feed de actividad) se devuelven en una sola respuesta
+    calculada en caliente (FR-007, FR-024, SC-001). Reutiliza la autenticación por cookie
+    de 001-user-auth. Las métricas no se actualizan en tiempo real (SC-010).
+
+servers:
+  - url: /
+
+paths:
+  /api/dashboard:
+    get:
+      operationId: getDashboard
+      summary: Datos completos del dashboard del usuario autenticado
+      tags: [dashboard]
+      security:
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Dashboard del usuario autenticado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardResponse"
+        "401":
+          description: >
+            No autenticado o token inválido/expirado. El acceso requiere sesión válida
+            (FR-023). El endpoint nunca acepta un user_id externo: siempre opera sobre el
+            usuario de la sesión.
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: access_token
+
+  schemas:
+    DashboardResponse:
+      type: object
+      required: [greeting, subtitle, stats, my_tournaments, activity]
+      properties:
+        greeting:
+          type: string
+          description: Saludo personalizado con el nickname (FR-001). Valor por defecto razonable si no hubiera nickname.
+          example: "Hola, playerOne"
+        subtitle:
+          type: string
+          description: Subtítulo fijo, idéntico para todos los usuarios (FR-002).
+        stats:
+          $ref: "#/components/schemas/StatsCards"
+        my_tournaments:
+          type: array
+          description: Torneos in_progress u open del usuario (FR-009/010). Vacío => estado vacío informativo en el cliente (FR-014).
+          items:
+            $ref: "#/components/schemas/TournamentCard"
+        activity:
+          type: array
+          description: Hasta 6 eventos, del más reciente al más antiguo (FR-015/020, límite 6). Vacío => estado vacío (FR-021).
+          maxItems: 6
+          items:
+            $ref: "#/components/schemas/ActivityEvent"
+
+    StatsCards:
+      type: object
+      description: Las 4 tarjetas de métricas (FR-003..FR-006, FR-025).
+      required: [active_tournaments, total_wins, best_streak, friends_count]
+      properties:
+        active_tournaments:
+          $ref: "#/components/schemas/ActiveTournamentsStat"
+        total_wins:
+          $ref: "#/components/schemas/WinsStat"
+        best_streak:
+          $ref: "#/components/schemas/StreakStat"
+        friends_count:
+          type: integer
+          minimum: 0
+          description: Nº de amistades aceptadas del usuario (4ª tarjeta, FR-025).
+          example: 7
+
+    ActiveTournamentsStat:
+      type: object
+      required: [count, weekly_delta]
+      properties:
+        count:
+          type: integer
+          minimum: 0
+          description: Torneos en estado in_progress en los que el usuario participa ahora (FR-003).
+          example: 3
+        weekly_delta:
+          type: integer
+          nullable: true
+          description: >
+            Variación vs hace 7 días (FR-004). null => sin histórico/usuario nuevo
+            (indicador neutro, no porcentaje sin sentido; edge case spec).
+          example: 1
+
+    WinsStat:
+      type: object
+      required: [wins, games_played, winrate]
+      properties:
+        wins:
+          type: integer
+          minimum: 0
+          description: Victorias totales, excluye byes (FR-005).
+          example: 12
+        games_played:
+          type: integer
+          minimum: 0
+          description: Partidas jugadas (ganadas + perdidas, excluye byes). Denominador del winrate.
+          example: 20
+        winrate:
+          type: number
+          format: float
+          nullable: true
+          minimum: 0
+          maximum: 100
+          description: Porcentaje victorias/jugadas. null o 0 si games_played==0 (FR-008, sin división por cero).
+          example: 60.0
+
+    StreakStat:
+      type: object
+      required: [best]
+      properties:
+        best:
+          type: integer
+          minimum: 0
+          description: Mejor racha de victorias consecutivas dentro de un mismo torneo (FR-006).
+          example: 5
+        tournament_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Torneo donde se logró la racha (última victoria de la racha). null si best==0.
+        tournament_name:
+          type: string
+          nullable: true
+          description: Nombre del torneo de la racha. null si best==0.
+          example: "Spring Cup"
+
+    TournamentCard:
+      type: object
+      required: [id, name, state, format, players_count]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: "Summer League"
+        state:
+          type: string
+          enum: [in_progress, open]
+          description: >
+            in_progress => "En curso"; open => "Próximo"/"Inscripción abierta".
+            Nunca finished/cancelled (FR-010).
+        format:
+          type: string
+          enum: [round_robin, single_elim]
+          description: Formato del torneo (FR-011).
+        players_count:
+          type: integer
+          minimum: 0
+          description: Nº de participantes inscritos al momento de la carga (FR-011, no tiempo real).
+          example: 16
+        current_round:
+          type: integer
+          nullable: true
+          description: Ronda actual; presente solo si state==in_progress (FR-012).
+          example: 3
+        start_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Fecha de inicio; presente/relevante si state==open (FR-012).
+
+    ActivityEvent:
+      type: object
+      required: [id, event_type, created_at, actor]
+      properties:
+        id:
+          type: string
+          format: uuid
+        event_type:
+          type: string
+          enum: [MATCH_WIN, TOURNAMENT_JOIN, TOURNAMENT_INVITE, TOURNAMENT_CREATE]
+          description: Tipo de evento (FR-016).
+        created_at:
+          type: string
+          format: date-time
+          description: Marca de tiempo del evento; el cliente calcula el "tiempo transcurrido" (FR-017, Decisión 6).
+        actor:
+          $ref: "#/components/schemas/ActorRef"
+        tournament:
+          allOf:
+            - $ref: "#/components/schemas/TournamentRef"
+          nullable: true
+          description: Torneo vinculado. null si el torneo fue borrado (FR-022) o el evento no lo referencia.
+
+    ActorRef:
+      type: object
+      required: [id, nickname]
+      description: Referencia clicable al usuario (FR-018). exists=false => render sin enlace (FR-022).
+      properties:
+        id:
+          type: string
+          format: uuid
+          nullable: true
+        nickname:
+          type: string
+          example: "playerB"
+        avatar_url:
+          type: string
+          nullable: true
+        exists:
+          type: boolean
+          default: true
+          description: false si el actor fue anonimizado/eliminado.
+
+    TournamentRef:
+      type: object
+      required: [name]
+      description: Referencia clicable al torneo (FR-018). id null => render sin enlace (FR-022).
+      properties:
+        id:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+          example: "Spring Cup"
