@@ -11,6 +11,7 @@ import pytest
 import pytest_asyncio
 from sqlalchemy import select
 
+from app.models.activity_feed import ActivityFeed
 from app.models.match import Match
 from app.models.notification import Notification
 from app.models.participant import Participant
@@ -244,6 +245,62 @@ async def test_manual_cannot_register_on_bye(db_session, world):
             winner_participant_id=world["p1"].id,
             acting_user_id=world["organizer"].id,
         )
+
+
+@pytest.mark.asyncio
+async def test_manual_result_records_match_win_activity_event(db_session, world):
+    """005-US3 instrumentation: a confirmed manual result emits a MATCH_WIN
+    activity event for the winning participant's user (research.md Decisión 3)."""
+    await match_service.register_manual_result(
+        db_session,
+        match_id=world["m1"].id,
+        winner_participant_id=world["p1"].id,
+        acting_user_id=world["organizer"].id,
+    )
+    events = (
+        await db_session.execute(
+            select(ActivityFeed).where(ActivityFeed.event_type == "MATCH_WIN")
+        )
+    ).scalars().all()
+    assert len(events) == 1
+    assert events[0].actor_id == world["p1"].user_id
+    assert events[0].tournament_id == world["tournament"].id
+
+
+@pytest.mark.asyncio
+async def test_bye_auto_resolution_does_not_record_match_win(db_session, world):
+    """A bye that auto-advances its player is NOT a MATCH_WIN event (byes are
+    excluded — FR-005/Decisión 3)."""
+    tournament = world["tournament"]
+    bye = Match(
+        tournament_id=tournament.id,
+        round_number=1,
+        bracket_position=2,
+        player1_id=world["p1"].id,
+        player2_id=None,
+        is_bye=True,
+        tournament_code=None,
+        state="pending",
+    )
+    db_session.add(bye)
+    await db_session.flush()
+    # Resolve m1 and m2 so the round closes and the bye auto-resolves.
+    await match_service.register_manual_result(
+        db_session, match_id=world["m1"].id,
+        winner_participant_id=world["p1"].id, acting_user_id=world["organizer"].id,
+    )
+    await match_service.register_manual_result(
+        db_session, match_id=world["m2"].id,
+        winner_participant_id=world["p3"].id, acting_user_id=world["organizer"].id,
+    )
+    # No MATCH_WIN event should reference the bye's auto-advance specifically;
+    # only the two real wins above are recorded.
+    events = (
+        await db_session.execute(
+            select(ActivityFeed).where(ActivityFeed.event_type == "MATCH_WIN")
+        )
+    ).scalars().all()
+    assert len(events) == 2
 
 
 @pytest.mark.asyncio

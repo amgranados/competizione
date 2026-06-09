@@ -19,7 +19,7 @@ from app.models.participant import Participant
 from app.models.tournament import Tournament
 from app.models.user import User
 from app.schemas.tournament import TournamentCreate, TournamentFormat, TournamentUpdate
-from app.services import calendar_service, notification_service
+from app.services import activity_service, calendar_service, notification_service
 
 INVITATION_TTL = timedelta(hours=48)
 
@@ -134,6 +134,13 @@ async def create(
     )
     session.add(tournament)
     await session.flush()
+    # 005-US3: record TOURNAMENT_CREATE for the organizer.
+    await activity_service.record(
+        session,
+        actor_id=organizer_id,
+        event_type="TOURNAMENT_CREATE",
+        tournament_id=tournament.id,
+    )
     return tournament
 
 
@@ -267,6 +274,13 @@ async def invite(
         tournament_id=tournament_id,
         invitation_id=inv.id,
     )
+    # 005-US3: record TOURNAMENT_INVITE for the inviter (actor).
+    await activity_service.record(
+        session,
+        actor_id=inviter_id,
+        event_type="TOURNAMENT_INVITE",
+        tournament_id=tournament_id,
+    )
     await session.flush()
     return inv
 
@@ -359,6 +373,13 @@ async def accept_invitation(
         type="invitation_accepted",
         tournament_id=tournament.id,
         invitation_id=inv.id,
+    )
+    # 005-US3: record TOURNAMENT_JOIN for the user who joined (actor).
+    await activity_service.record(
+        session,
+        actor_id=user_id,
+        event_type="TOURNAMENT_JOIN",
+        tournament_id=tournament.id,
     )
     await session.flush()
     return inv

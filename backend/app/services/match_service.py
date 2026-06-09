@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.match import Match
 from app.models.participant import Participant
 from app.models.tournament import Tournament
-from app.services import calendar_service, notification_service
+from app.services import activity_service, calendar_service, notification_service
 
 
 class MatchNotFound(Exception):
@@ -93,6 +93,17 @@ async def register_manual_result(
                 tournament_id=tournament.id,
                 match_id=match.id,
             )
+
+    # 005-US3: record the MATCH_WIN activity event for the winner's user. Byes
+    # are excluded above (they never reach here), so this is a real, decided win.
+    winner = participants.get(winner_participant_id)
+    if winner is not None:
+        await activity_service.record(
+            session,
+            actor_id=winner.user_id,
+            event_type="MATCH_WIN",
+            tournament_id=tournament.id,
+        )
 
     # Try to close the round / generate the next.
     await _maybe_close_round(session, tournament, match.round_number)

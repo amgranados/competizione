@@ -1,281 +1,118 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { tournamentApi } from "../api/tournamentApi.js";
-import { friendsApi } from "../api/friendsApi.js";
-import { useAuth } from "../hooks/useAuth.js";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { dashboardApi } from "../api/dashboardApi.js";
 import { useNotifications } from "../context/NotificationContext.jsx";
 import Shell from "../components/Shell.jsx";
 import Card from "../components/ui/Card.jsx";
+import StatsCard from "../components/StatsCard.jsx";
+import TournamentCard from "../components/TournamentCard.jsx";
+import ActivityFeed from "../components/ActivityFeed.jsx";
 import UserSearchBar from "../components/UserSearchBar.jsx";
-import Btn from "../components/ui/Btn.jsx";
-import Input from "../components/ui/Input.jsx";
-import Tag from "../components/ui/Tag.jsx";
 import Icon from "../components/ui/Icon.jsx";
 import { T } from "../styles/theme.js";
 
-const STATE_VARIANTS = {
-  draft: "default",
-  open: "blue",
-  active: "ac",
-  finished: "green",
-  cancelled: "orange",
-};
-
-const STATE_LABELS = {
-  draft: "Borrador",
-  open: "Inscripción",
-  active: "En curso",
-  finished: "Finalizado",
-  cancelled: "Cancelado",
-};
-
-const FORMAT_LABELS = {
-  round_robin: "Round-robin",
-  single_elim: "Eliminación directa",
-};
+function formatWinrate(winrate, gamesPlayed) {
+  if (winrate == null || !gamesPlayed) return "0%";
+  return `${Math.round(winrate)}%`;
+}
 
 export default function Dashboard() {
-  const { user } = useAuth();
   const { notifications } = useNotifications();
-  const [tournaments, setTournaments] = useState([]);
-  const [invitations, setInvitations] = useState([]);
-  const [friendRequests, setFriendRequests] = useState([]);
-  const [name, setName] = useState("");
-  const [format, setFormat] = useState("round_robin");
-  const [creating, setCreating] = useState(false);
+  const [data, setData] = useState(null);
   const [error, setError] = useState(null);
-  const navigate = useNavigate();
-
-  const refresh = useCallback(async () => {
-    const [t, inv, fr] = await Promise.all([
-      tournamentApi.listMine(),
-      tournamentApi.listMyInvitations("pending"),
-      friendsApi.getReceivedRequests().catch(() => []),
-    ]);
-    setTournaments(t);
-    setInvitations(inv);
-    setFriendRequests(fr);
-  }, []);
 
   useEffect(() => {
-    refresh();
-  }, [refresh, notifications]);
+    let active = true;
+    dashboardApi
+      .getDashboard()
+      .then((d) => {
+        if (active) setData(d);
+      })
+      .catch((err) => {
+        if (active) setError(err.message || "No se pudo cargar el dashboard");
+      });
+    return () => {
+      active = false;
+    };
+    // Re-fetch when notifications change (new events may have arrived).
+  }, [notifications]);
 
-  const stats = useMemo(() => {
-    const total = tournaments.length;
-    const active = tournaments.filter((t) => t.state === "active").length;
-    const drafts = tournaments.filter((t) => t.state === "draft" || t.state === "open").length;
-    const finished = tournaments.filter((t) => t.state === "finished").length;
-    return { total, active, drafts, finished };
-  }, [tournaments]);
-
-  const handleCreate = async (event) => {
-    event.preventDefault();
-    setError(null);
-    setCreating(true);
-    try {
-      const t = await tournamentApi.create({ name, format });
-      setName("");
-      navigate(`/tournaments/${t.id}`);
-    } catch (err) {
-      setError(err.message || "No se pudo crear el torneo");
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  const acceptInvitation = async (invitationId) => {
-    await tournamentApi.acceptInvitation(invitationId);
-    await refresh();
-  };
-  const rejectInvitation = async (invitationId) => {
-    await tournamentApi.rejectInvitation(invitationId);
-    await refresh();
-  };
-
-  const acceptFriendRequest = async (requestId) => {
-    await friendsApi.acceptRequest(requestId);
-    await refresh();
-  };
-  const rejectFriendRequest = async (requestId) => {
-    await friendsApi.rejectRequest(requestId);
-    await refresh();
-  };
+  const stats = data?.stats;
 
   return (
-    <Shell
-      title="Dashboard"
-      subtitle={`HOLA, ${user?.nickname?.toUpperCase() ?? ""}`}
-      actions={<UserSearchBar />}
-    >
-      {/* Stats */}
+    <Shell title="Dashboard" subtitle={data?.subtitle ?? ""} actions={<UserSearchBar />}>
+      {error && (
+        <Card hoverable={false} style={{ marginBottom: 24 }}>
+          <p role="alert" style={{ color: T.ac, fontSize: 13, margin: 0 }}>
+            {error}
+          </p>
+        </Card>
+      )}
+
+      {/* Greeting */}
+      <h2
+        style={{
+          fontFamily: T.fH,
+          fontSize: 22,
+          fontWeight: 700,
+          letterSpacing: "-0.5px",
+          marginBottom: 20,
+        }}
+      >
+        {data?.greeting ?? ""}
+      </h2>
+
+      {/* Stat cards */}
       <div
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(4, 1fr)",
           gap: 12,
-          marginBottom: 24,
+          marginBottom: 28,
         }}
       >
-        <StatCard label="Torneos totales" value={stats.total} />
-        <StatCard label="En curso" value={stats.active} accent />
-        <StatCard label="Pre-inicio" value={stats.drafts} />
-        <StatCard label="Finalizados" value={stats.finished} />
+        <StatsCard
+          label="Torneos activos"
+          value={stats?.active_tournaments.count ?? 0}
+          delta={stats?.active_tournaments.weekly_delta ?? null}
+          accent
+        />
+        <StatsCard
+          label="Victorias"
+          value={stats?.total_wins.wins ?? 0}
+          subvalue={formatWinrate(stats?.total_wins.winrate, stats?.total_wins.games_played)}
+        />
+        <StatsCard
+          label="Mejor streak"
+          value={stats?.best_streak.best ?? 0}
+          subvalue={stats?.best_streak.tournament_name ?? null}
+        />
+        <StatsCard label="Amigos" value={stats?.friends_count ?? 0} />
       </div>
 
-      {/* Pending friend requests */}
-      {friendRequests.length > 0 && (
-        <section style={{ marginBottom: 24 }}>
-          <SectionTitle>Solicitudes de amistad</SectionTitle>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {friendRequests.map((req) => (
-              <Card key={req.id} hoverable={false}>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 12,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <Link
-                    to={`/users/${encodeURIComponent(req.requester_nickname)}`}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                      textDecoration: "none",
-                      color: "inherit",
-                      minWidth: 0,
-                    }}
-                  >
-                    <Icon name="user" size={16} color={T.ac} />
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600 }}>
-                        {req.requester_nickname}
-                      </div>
-                      <div
-                        style={{
-                          fontFamily: T.fM,
-                          fontSize: 10,
-                          letterSpacing: 1,
-                          color: T.tx3,
-                          textTransform: "uppercase",
-                        }}
-                      >
-                        quiere ser tu amigo · {new Date(req.created_at).toLocaleString()}
-                      </div>
-                    </div>
-                  </Link>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <Btn size="sm" onClick={() => acceptFriendRequest(req.id)}>
-                      <Icon name="check" size={12} /> Aceptar
-                    </Btn>
-                    <Btn
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => rejectFriendRequest(req.id)}
-                    >
-                      <Icon name="x" size={12} /> Rechazar
-                    </Btn>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Pending invitations */}
-      {invitations.length > 0 && (
-        <section style={{ marginBottom: 24 }}>
-          <SectionTitle>Invitaciones pendientes</SectionTitle>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {invitations.map((inv) => (
-              <Card key={inv.id} hoverable={false}>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 12,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-                    <Icon name="mail" size={16} color={T.ac} />
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600 }}>
-                        Torneo
-                      </div>
-                      <div
-                        style={{
-                          fontFamily: T.fM,
-                          fontSize: 10,
-                          letterSpacing: 1,
-                          color: T.tx3,
-                          textTransform: "uppercase",
-                        }}
-                      >
-                        {inv.tournament_id.slice(0, 8)} · expira{" "}
-                        {new Date(inv.expires_at).toLocaleString()}
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <Btn size="sm" onClick={() => acceptInvitation(inv.id)}>
-                      <Icon name="check" size={12} /> Aceptar
-                    </Btn>
-                    <Btn size="sm" variant="ghost" onClick={() => rejectInvitation(inv.id)}>
-                      <Icon name="x" size={12} /> Rechazar
-                    </Btn>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Create tournament */}
-      <section style={{ marginBottom: 24 }}>
-        <SectionTitle>Crear torneo</SectionTitle>
-        <Card hoverable={false}>
-          <form
-            onSubmit={handleCreate}
-            style={{ display: "grid", gridTemplateColumns: "2fr 1fr auto", gap: 12, alignItems: "end" }}
-          >
-            <Input
-              label="Nombre"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              minLength={1}
-              maxLength={100}
-              icon={<Icon name="trophy" />}
-            />
-            <FormatSelect value={format} onChange={setFormat} />
-            <Btn type="submit" disabled={creating}>
-              <Icon name="plus" size={14} />
-              {creating ? "Creando…" : "Crear"}
-            </Btn>
-          </form>
-          {error && (
-            <p role="alert" style={{ color: T.ac, fontSize: 13, marginTop: 12 }}>
-              {error}
-            </p>
-          )}
-        </Card>
-      </section>
-
       {/* My tournaments */}
-      <section>
-        <SectionTitle>Mis torneos</SectionTitle>
-        {tournaments.length === 0 ? (
+      <section style={{ marginBottom: 28 }}>
+        <SectionHeader title="Mis torneos">
+          <Link
+            to="/tournaments"
+            style={{
+              fontFamily: T.fM,
+              fontSize: 11,
+              letterSpacing: 0.5,
+              color: T.ac,
+              textDecoration: "none",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+            }}
+          >
+            Ver todos <Icon name="arrowRight" size={12} />
+          </Link>
+        </SectionHeader>
+        {data && data.my_tournaments.length === 0 ? (
           <Card hoverable={false}>
-            <p style={{ color: T.tx2, fontSize: 13 }}>
-              No tienes torneos todavía. Crea uno arriba para empezar.
+            <p style={{ color: T.tx2, fontSize: 13, margin: 0 }}>
+              No tienes torneos activos ni próximos. ¡Únete o crea uno desde Torneos!
             </p>
           </Card>
         ) : (
@@ -286,144 +123,34 @@ export default function Dashboard() {
               gap: 12,
             }}
           >
-            {tournaments.map((t) => (
-              <Link
-                key={t.id}
-                to={`/tournaments/${t.id}`}
-                style={{ textDecoration: "none", color: "inherit" }}
-              >
-                <Card accent={t.state === "active"}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
-                    <Tag variant={STATE_VARIANTS[t.state]}>{STATE_LABELS[t.state]}</Tag>
-                    <span
-                      style={{
-                        fontFamily: T.fM,
-                        fontSize: 10,
-                        letterSpacing: 1,
-                        color: T.tx3,
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      {FORMAT_LABELS[t.format]}
-                    </span>
-                  </div>
-                  <div
-                    style={{
-                      fontFamily: T.fH,
-                      fontSize: 18,
-                      fontWeight: 700,
-                      letterSpacing: "-0.4px",
-                      marginBottom: 6,
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {t.name}
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, color: T.tx3, fontSize: 11 }}>
-                    <Icon name="users" size={12} />
-                    <span>{(t.participants || []).length} participantes</span>
-                  </div>
-                </Card>
-              </Link>
+            {(data?.my_tournaments ?? []).map((t) => (
+              <TournamentCard key={t.id} tournament={t} />
             ))}
           </div>
         )}
+      </section>
+
+      {/* Activity feed */}
+      <section>
+        <SectionHeader title="Actividad reciente" />
+        <ActivityFeed events={data?.activity ?? []} />
       </section>
     </Shell>
   );
 }
 
-function SectionTitle({ children }) {
+function SectionHeader({ title, children }) {
   return (
-    <h2
+    <div
       style={{
-        fontFamily: T.fH,
-        fontSize: 15,
-        fontWeight: 600,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
         marginBottom: 12,
       }}
     >
+      <h2 style={{ fontFamily: T.fH, fontSize: 15, fontWeight: 600, margin: 0 }}>{title}</h2>
       {children}
-    </h2>
-  );
-}
-
-function StatCard({ label, value, accent = false }) {
-  return (
-    <Card accent={accent}>
-      <div
-        style={{
-          fontFamily: T.fM,
-          fontSize: 10,
-          color: T.tx3,
-          textTransform: "uppercase",
-          letterSpacing: 1,
-          marginBottom: 10,
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          fontFamily: T.fH,
-          fontSize: 30,
-          fontWeight: 700,
-          letterSpacing: "-1px",
-          lineHeight: 1,
-        }}
-      >
-        {value}
-      </div>
-    </Card>
-  );
-}
-
-function FormatSelect({ value, onChange }) {
-  return (
-    <div>
-      <label
-        style={{
-          display: "block",
-          fontFamily: T.fB,
-          fontSize: 12,
-          fontWeight: 500,
-          color: T.tx2,
-          letterSpacing: 0.3,
-          marginBottom: 6,
-        }}
-      >
-        Formato
-      </label>
-      <div
-        style={{
-          background: T.s3,
-          border: `1px solid ${T.bd}`,
-          borderRadius: T.r,
-          padding: "10px 13px",
-          display: "flex",
-          alignItems: "center",
-        }}
-      >
-        <select
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          style={{
-            flex: 1,
-            background: "transparent",
-            color: T.tx,
-            border: "none",
-            outline: "none",
-            fontFamily: T.fB,
-            fontSize: 13,
-            cursor: "pointer",
-          }}
-        >
-          <option value="round_robin">Round-robin</option>
-          <option value="single_elim">Eliminación directa</option>
-        </select>
-      </div>
     </div>
   );
 }
