@@ -154,6 +154,7 @@ async def _maybe_close_round(
         )
         # Persist new round's matches.
         participants = await _participants_by_id(session, tournament.id)
+        created_matches: list[Match] = []
         for m in new_round.matches:
             match = Match(
                 tournament_id=tournament.id,
@@ -167,6 +168,7 @@ async def _maybe_close_round(
                 state="pending",
             )
             session.add(match)
+            created_matches.append(match)
             await session.flush()
             if not m.is_bye:
                 for pid in (m.player1_id, m.player2_id):
@@ -180,6 +182,12 @@ async def _maybe_close_round(
                             match_id=match.id,
                         )
         await session.flush()
+
+        # Tournament-Stub-V5: códigos reales para la nueva ronda (fallback
+        # silencioso a los códigos locales si Riot no responde).
+        from app.services import riot_tournament_service
+
+        await riot_tournament_service.provision_codes(session, tournament, created_matches)
     else:
         # Round-robin: round 1 contains all matches. When they are all closed,
         # the tournament is finished.

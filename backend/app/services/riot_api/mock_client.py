@@ -4,10 +4,12 @@ Used automatically by get_riot_api_client() when RIOT_API_KEY is not set.
 """
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass, field
 
 from app.services.riot_api.client import (
     ChampionMastery,
+    LobbyEvent,
     MatchResult,
     MatchSummary,
     RankedStats,
@@ -37,6 +39,13 @@ class MockRiotAPIClient:
     # Set of puuids for which a given method should raise RiotUnavailableError
     unavailable_for: set[str] = field(default_factory=set)
     unavailable_methods: dict[str, set[str]] = field(default_factory=dict)
+
+    # Tournament-Stub-V5 (mirrors the sandbox: incremental ids, fake codes)
+    stub_unavailable: bool = False
+    created_providers: list[dict] = field(default_factory=list)
+    created_tournaments: list[dict] = field(default_factory=list)
+    created_codes: list[dict] = field(default_factory=list)
+    configured_lobby_events: dict[str, list[LobbyEvent]] = field(default_factory=dict)
 
     # ----- 002 -----
 
@@ -95,3 +104,54 @@ class MockRiotAPIClient:
             return self.configured_matches[puuid][:limit]
         except KeyError as exc:
             raise RiotUnavailableError(f"matches not seeded for {puuid}") from exc
+
+    # ----- Tournament-Stub-V5 -----
+
+    def _stub_guard(self) -> None:
+        if self.stub_unavailable:
+            raise RiotUnavailableError("tournament stub unavailable")
+
+    async def create_tournament_provider(self, region: str, callback_url: str) -> int:
+        self._stub_guard()
+        provider_id = 100 + len(self.created_providers)
+        self.created_providers.append(
+            {"id": provider_id, "region": region, "url": callback_url}
+        )
+        return provider_id
+
+    async def create_tournament(self, provider_id: int, name: str) -> int:
+        self._stub_guard()
+        tournament_id = 1000 + len(self.created_tournaments)
+        self.created_tournaments.append(
+            {"id": tournament_id, "provider_id": provider_id, "name": name}
+        )
+        return tournament_id
+
+    async def create_tournament_codes(
+        self,
+        tournament_id: int,
+        count: int,
+        *,
+        team_size: int = 1,
+        allowed_puuids: list[str] | None = None,
+        metadata: str | None = None,
+    ) -> list[str]:
+        self._stub_guard()
+        codes = []
+        for _ in range(count):
+            code = f"STUB-{tournament_id}-{uuid.uuid4().hex[:10]}"
+            self.created_codes.append(
+                {
+                    "code": code,
+                    "tournament_id": tournament_id,
+                    "team_size": team_size,
+                    "allowed_puuids": allowed_puuids,
+                    "metadata": metadata,
+                }
+            )
+            codes.append(code)
+        return codes
+
+    async def get_lobby_events(self, tournament_code: str) -> list[LobbyEvent]:
+        self._stub_guard()
+        return self.configured_lobby_events.get(tournament_code, [])

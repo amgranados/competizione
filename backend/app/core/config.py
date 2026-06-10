@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     FRONTEND_ORIGIN: AnyHttpUrl
     COOKIES_SECURE: bool = True
     RIOT_API_KEY: str | None = None
+    # Tournament-Stub-V5: región del provider (EUW, NA, KR…) y callback URL
+    # (https) donde Riot publicaría los resultados de cada partida. El stub
+    # no llega a llamar al callback, pero el registro exige una URL válida.
+    RIOT_TOURNAMENT_REGION: str = "EUW"
+    RIOT_TOURNAMENT_CALLBACK_URL: str = "https://example.invalid/riot/tournament-results"
     # M-06: hosts de los que se confía el header X-Forwarded-For para el
     # rate-limit por IP. Por defecto sólo loopback (NUNCA "*", que permitiría
     # spoofear la IP). En producción tras un proxy, fijar la IP/red del proxy.

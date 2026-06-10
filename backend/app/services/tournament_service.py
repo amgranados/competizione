@@ -572,6 +572,7 @@ async def start_tournament(
     else:
         rounds = [calendar_service.generate_single_elim_first_round(participants)]
 
+    created_matches: list[Match] = []
     for r in rounds:
         for m in r.matches:
             match = Match(
@@ -586,10 +587,17 @@ async def start_tournament(
                 state="pending",
             )
             session.add(match)
+            created_matches.append(match)
 
     tournament.state = "active"
     tournament.started_at = _now()
     await session.flush()
+
+    # Tournament-Stub-V5: registrar el torneo en Riot y sustituir los códigos
+    # locales por códigos reales (con fallback silencioso si Riot falla).
+    from app.services import riot_tournament_service
+
+    await riot_tournament_service.provision_codes(session, tournament, created_matches)
 
     # I-05: acumular todas las notificaciones de arranque y volcarlas en bloque.
     notifications: list[dict] = [

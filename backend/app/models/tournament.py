@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, String, Uuid
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -26,3 +26,8 @@ class Tournament(Base):
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Tournament-Stub-V5: ids devueltos por Riot al registrar el provider y el
+    # torneo. NULL hasta que el torneo arranca (o si Riot no estaba disponible
+    # y se usaron códigos locales de respaldo).
+    riot_provider_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    riot_tournament_id: Mapped[int | None] = mapped_column(Integer, nullable=True)

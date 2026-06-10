@@ -81,6 +81,41 @@ async def get_match(
     return _match_to_schema(match, hide_code=hide_code)
 
 
+@router.get("/matches/{match_id}/lobby-events")
+async def get_lobby_events(
+    match_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[dict]:
+    """Eventos de la lobby del código de torneo (Tournament-Stub-V5).
+
+    Visible para quien puede ver el código (organizador o jugadores de la
+    partida). Si Riot no está disponible o la partida no tiene código, lista
+    vacía: es información auxiliar, nunca bloqueante.
+    """
+    from app.core.config import get_settings
+    from app.services.riot_api.client import (
+        RiotIdentityError,
+        RiotUnavailableError,
+        get_riot_api_client,
+    )
+
+    match = await session.get(MatchModel, match_id)
+    if match is None or not await _viewer_allowed(session, match, current_user):
+        raise HTTPException(status_code=404, detail="Not found")
+    if await _hide_code_for(session, match, current_user) or not match.tournament_code:
+        return []
+    client = get_riot_api_client(get_settings())
+    try:
+        events = await client.get_lobby_events(match.tournament_code)
+    except (RiotIdentityError, RiotUnavailableError):
+        return []
+    return [
+        {"timestamp": e.timestamp, "event_type": e.event_type, "puuid": e.puuid}
+        for e in events
+    ]
+
+
 @router.post("/matches/{match_id}/manual-result", response_model=MatchSchema)
 async def register_manual_result(
     match_id: uuid.UUID,

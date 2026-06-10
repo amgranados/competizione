@@ -79,6 +79,18 @@ class MatchSummary:
     queue: str
 
 
+# ----- 00X dataclasses (Tournament-Stub-V5) --------------------------------
+
+@dataclass(frozen=True)
+class LobbyEvent:
+    """One lobby event of a tournament-code game (player joined/left, game
+    started…), as returned by GET /lol/tournament-stub/v5/lobby-events."""
+
+    timestamp: str
+    event_type: str
+    puuid: str | None = None
+
+
 # ----- 003 exceptions -----------------------------------------------------
 
 class RiotIdentityError(Exception):
@@ -112,6 +124,28 @@ class RiotAPIClient(Protocol):
     async def get_recent_matches(
         self, puuid: str, region: str, limit: int = 5
     ) -> list[MatchSummary]: ...
+
+    # Tournament-Stub-V5 — provisión de torneos y códigos de partida.
+    # El flujo real de Riot es: provider (1 por app+región, con callback URL)
+    # → tournament (contenedor lógico) → codes (uno por partida, se introduce
+    # en el cliente de LoL para crear la lobby). El stub es el sandbox de ese
+    # flujo: misma superficie, sin efectos en el juego real.
+
+    async def create_tournament_provider(self, region: str, callback_url: str) -> int: ...
+
+    async def create_tournament(self, provider_id: int, name: str) -> int: ...
+
+    async def create_tournament_codes(
+        self,
+        tournament_id: int,
+        count: int,
+        *,
+        team_size: int = 1,
+        allowed_puuids: list[str] | None = None,
+        metadata: str | None = None,
+    ) -> list[str]: ...
+
+    async def get_lobby_events(self, tournament_code: str) -> list[LobbyEvent]: ...
 
 
 def get_riot_api_client(settings) -> RiotAPIClient:
