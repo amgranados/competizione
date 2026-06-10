@@ -74,6 +74,26 @@ def test_factory_returns_http_client_when_api_key_present():
     assert isinstance(client, HttpRiotAPIClient)
 
 
+def test_factory_fails_fast_in_production_without_key():
+    """L-08: en producción sin RIOT_API_KEY se aborta en vez de usar el Mock
+    (que serviría estadísticas falsas)."""
+    class ProdSettings:
+        RIOT_API_KEY: str | None = None
+        ENVIRONMENT = "production"
+
+    with pytest.raises(RuntimeError):
+        get_riot_api_client(ProdSettings())
+
+
+def test_factory_returns_mock_in_dev_without_key():
+    """En dev/test sin key se mantiene el Mock (no rompe el flujo local)."""
+    class DevSettings:
+        RIOT_API_KEY: str | None = None
+        ENVIRONMENT = "development"
+
+    assert isinstance(get_riot_api_client(DevSettings()), MockRiotAPIClient)
+
+
 # ===== 003 — Mock client tests ==========================================
 
 @pytest.mark.asyncio
@@ -153,10 +173,10 @@ from app.services.riot_api.http_client import HttpRiotAPIClient  # noqa: E402
 @pytest.mark.asyncio
 @respx.mock
 async def test_http_resolve_puuid_with_respx_200():
-    """Vinculación: el éxito es exclusivamente HTTP 200; api_key va en query."""
+    """Vinculación: el éxito es exclusivamente HTTP 200; la auth va en la
+    cabecera X-Riot-Token (formato canónico de Riot), no en query param."""
     route = respx.get(
         "https://europe.api.riotgames.com/riot/account/v1/accounts/by-riot-id/Faker/KR1",
-        params={"api_key": "test-key"},
     ).mock(return_value=Response(200, json={"puuid": "PUUID-FAKER"}))
 
     client = HttpRiotAPIClient(api_key="test-key")
@@ -164,6 +184,29 @@ async def test_http_resolve_puuid_with_respx_200():
 
     assert result == "PUUID-FAKER"
     assert route.called
+    assert route.calls.last.request.headers["X-Riot-Token"] == "test-key"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_http_resolve_puuid_url_escapes_riot_id():
+    """L-02: game_name/tag_line se escapan en la URL (espacios y caracteres
+    reservados como '/'), evitando que alteren la ruta del endpoint."""
+    route = respx.get(
+        "https://europe.api.riotgames.com/riot/account/v1/accounts/by-riot-id/"
+        "Hide%20on%20bush/EU%2FW"
+    ).mock(return_value=Response(200, json={"puuid": "PUUID-ESCAPED"}))
+
+    client = HttpRiotAPIClient(api_key="test-key")
+    result = await client.resolve_puuid("Hide on bush", "EU/W", "europe")
+
+    assert result == "PUUID-ESCAPED"
+    assert route.called
+    # La ruta cruda no contiene espacios ni un '/' extra de segmento.
+    raw_path = route.calls.last.request.url.raw_path.decode()
+    assert " " not in raw_path
+    assert "Hide%20on%20bush" in raw_path
+    assert "EU%2FW" in raw_path
 
 
 @pytest.mark.asyncio
@@ -258,9 +301,10 @@ async def test_http_get_ranked_stats_with_respx_200():
 @pytest.mark.asyncio
 @respx.mock
 async def test_http_get_champion_mastery_with_respx_200():
-    respx.get(
-        "https://europe.api.riotgames.com/lol/champion-mastery/v4/champion-masteries/by-puuid/P1/top",
-        params={"count": "5", "api_key": "test-key"},
+    # Prod consulta el endpoint completo (sin /top ni count en la query) y
+    # trunca client-side; la auth va en la cabecera X-Riot-Token.
+    route = respx.get(
+        "https://europe.api.riotgames.com/lol/champion-mastery/v4/champion-masteries/by-puuid/P1",
     ).mock(
         return_value=Response(
             200,
@@ -277,6 +321,7 @@ async def test_http_get_champion_mastery_with_respx_200():
     assert len(result) == 2
     assert result[0].champion_id == 1
     assert result[0].champion_level == 7
+    assert route.calls.last.request.headers["X-Riot-Token"] == "test-key"
 
 
 @pytest.mark.asyncio
@@ -284,7 +329,7 @@ async def test_http_get_champion_mastery_with_respx_200():
 async def test_http_get_recent_matches_with_respx_200_and_2_matches():
     respx.get(
         "https://europe.api.riotgames.com/lol/match/v5/matches/by-puuid/P1/ids",
-        params={"count": "5", "api_key": "test-key"},
+        params={"count": "5"},
     ).mock(return_value=Response(200, json=["M1", "M2"]))
     respx.get("https://europe.api.riotgames.com/lol/match/v5/matches/M1").mock(
         return_value=Response(

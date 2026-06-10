@@ -7,7 +7,7 @@ is set. Iteration 002's match-verification methods are kept untouched.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol, runtime_checkable
 
@@ -117,12 +117,21 @@ class RiotAPIClient(Protocol):
 def get_riot_api_client(settings) -> RiotAPIClient:
     """Return a Riot API client based on RIOT_API_KEY presence.
 
-    - RIOT_API_KEY unset → MockRiotAPIClient with explicit INFO log.
-    - RIOT_API_KEY set   → HttpRiotAPIClient (003 wiring).
+    - RIOT_API_KEY unset, prod  → fail-fast (L-08): NO devolver Mock en
+      producción, pues serviría estadísticas falsas de forma silenciosa.
+    - RIOT_API_KEY unset, dev/test → MockRiotAPIClient con log INFO explícito.
+    - RIOT_API_KEY set          → HttpRiotAPIClient (003 wiring).
     """
     from app.services.riot_api.mock_client import MockRiotAPIClient
 
     if getattr(settings, "RIOT_API_KEY", None) is None:
+        environment = str(getattr(settings, "ENVIRONMENT", "development")).strip().lower()
+        if environment in ("prod", "production"):
+            logger.error("RIOT_API_KEY no está configurada en producción; abortando.")
+            raise RuntimeError(
+                "RIOT_API_KEY es obligatoria en producción "
+                "(sin ella se servirían estadísticas falsas del Mock)."
+            )
         logger.info("Using MockRiotAPIClient: RIOT_API_KEY not set")
         return MockRiotAPIClient()
 

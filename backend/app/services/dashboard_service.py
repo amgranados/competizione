@@ -15,8 +15,8 @@ from app.models.participant import Participant
 from app.models.tournament import Tournament
 from app.models.user import User
 from app.schemas.dashboard import (
-    ActivityEvent,
     ActiveTournamentsStat,
+    ActivityEvent,
     ActorRef,
     DashboardResponse,
     StatsCards,

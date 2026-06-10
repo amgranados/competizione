@@ -12,7 +12,6 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
 # --- US1: stat cards (FR-003..006, FR-025) -------------------------------
 
 

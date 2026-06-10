@@ -17,6 +17,29 @@ class InvalidToken(Exception):
     pass
 
 
+class PasswordPolicyError(Exception):
+    """La contraseña no cumple la política (longitud mínima o límite de bcrypt)."""
+
+
+# L-06: política de contraseñas centralizada.
+# - Mínimo 8 caracteres (coincide con el esquema).
+# - bcrypt (passlib) trunca SILENCIOSAMENTE a 72 bytes: una contraseña más larga
+#   sólo es tan fuerte como sus primeros 72 bytes. Rechazamos > 72 bytes (UTF-8)
+#   para que el usuario no tenga una falsa sensación de seguridad.
+MIN_PASSWORD_LENGTH = 8
+MAX_PASSWORD_BYTES = 72
+
+
+def validate_password_policy(password: str) -> None:
+    """Valida la contraseña; lanza PasswordPolicyError si no cumple."""
+    if len(password) < MIN_PASSWORD_LENGTH:
+        raise PasswordPolicyError("La contraseña debe tener al menos 8 caracteres")
+    if len(password.encode("utf-8")) > MAX_PASSWORD_BYTES:
+        raise PasswordPolicyError(
+            "La contraseña es demasiado larga (máx. 72 bytes; bcrypt trunca a partir de ahí)"
+        )
+
+
 def get_secret() -> str:
     return get_settings().SECRET_KEY
 
@@ -112,4 +135,8 @@ async def get_current_user(request, session):
     user = result.scalar_one_or_none()
     if user is None:
         raise InvalidToken("user not found")
+    # M-01: una cuenta borrada (anonimizada) no puede seguir autenticada aunque
+    # conserve un access token válido en otro dispositivo.
+    if user.deleted_at is not None:
+        raise InvalidToken("account deleted")
     return user

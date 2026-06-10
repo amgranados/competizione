@@ -113,11 +113,19 @@ Comando del repo (CLAUDE.md): `cd src; pytest; ruff check .` — aquí el backen
 
 ## Definición de hecho (gates)
 
-- [ ] Todos los tests anteriores **rojos primero**, luego verdes (Constitution II).
-- [ ] `ruff check .` limpio en backend.
-- [ ] Migración `activity_feed` aplica y revierte (`alembic upgrade head` / `downgrade -1`).
-- [ ] `GET /api/dashboard` cumple el contrato `contracts/dashboard.openapi.yaml`.
-- [ ] **HALLAZGO de estado** (`research.md` Decisión 2) resuelto o documentado con aprobación
-      humana antes de cerrar la feature (unificar frontend `active` ↔ backend `in_progress`).
-- [ ] **Sin dependencias nuevas**; si alguna fuera necesaria, parar y pedir análisis CVE
-      (Constitution I).
+- [X] Todos los tests anteriores **rojos primero**, luego verdes (Constitution II). — cada unidad
+      se confirmó en Rojo antes de implementar (ver notas por tarea en `tasks.md`).
+- [~] `ruff check .` limpio en backend. — `ruff` **no instalado** y no declarado en
+      `requirements.txt`/`pyproject.toml`; no se instaló (Constitution I / T001). Sustituto:
+      `py_compile` limpio + escaneo AST sin imports sin usar. **Pendiente humano**: añadir `ruff`
+      al toolchain (con su revisión) si se quiere el gate real.
+- [X] Migración `activity_feed` aplica y revierte (`alembic upgrade head` / `downgrade -1`). —
+      verificado dos veces sobre SQLite (cadena 001→005 y reverso a `e2a4b5c7d9f1`).
+- [X] `GET /api/dashboard` cumple el contrato `contracts/dashboard.openapi.yaml`. — validado por
+      `tests/integration/test_dashboard_routes.py` (401 sin auth, DashboardResponse completo,
+      usuario nuevo neutro, aislamiento).
+- [X] **HALLAZGO de estado** (`research.md` Decisión 2) resuelto o documentado. — Opción 2
+      (mapeo en read layer, sin tocar el dominio); ver `research.md §Decisión 2 → RESOLUCIÓN (T030)`.
+      La unificación del dominio queda fuera de alcance y requiere aprobación humana.
+- [X] **Sin dependencias nuevas**; si alguna fuera necesaria, parar y pedir análisis CVE
+      (Constitution I). — no se añadió ninguna dependencia pip/npm.

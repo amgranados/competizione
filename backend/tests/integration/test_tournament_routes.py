@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from tests.helpers import register_user, switch_user
+from tests.helpers import make_invitable, register_user, switch_user
 
 
 @pytest.mark.asyncio
@@ -70,12 +70,13 @@ async def test_open_registration_from_wrong_state_returns_409(async_client):
 
 
 @pytest.mark.asyncio
-async def test_invite_user_creates_pending_invitation_with_48h_expiry(async_client):
+async def test_invite_user_creates_pending_invitation_with_48h_expiry(async_client, db_session):
     organizer = await register_user(async_client, "org@example.com", "Org")
     t = (await async_client.post("/tournaments", json={"name": "T", "format": "round_robin"})).json()
     await async_client.post(f"/tournaments/{t['id']}/open")
 
     invitee = await register_user(async_client, "inv@example.com", "Invitee")
+    await make_invitable(db_session, organizer, invitee)
     switch_user(async_client, organizer)
 
     resp = await async_client.post(
@@ -98,11 +99,12 @@ async def test_invite_user_creates_pending_invitation_with_48h_expiry(async_clie
 
 
 @pytest.mark.asyncio
-async def test_cannot_invite_same_user_twice_while_pending(async_client):
+async def test_cannot_invite_same_user_twice_while_pending(async_client, db_session):
     organizer = await register_user(async_client, "org@example.com", "Org")
     t = (await async_client.post("/tournaments", json={"name": "T", "format": "round_robin"})).json()
     await async_client.post(f"/tournaments/{t['id']}/open")
     invitee = await register_user(async_client, "inv@example.com", "Inv")
+    await make_invitable(db_session, organizer, invitee)
     switch_user(async_client, organizer)
 
     first = await async_client.post(
@@ -116,11 +118,12 @@ async def test_cannot_invite_same_user_twice_while_pending(async_client):
 
 
 @pytest.mark.asyncio
-async def test_accept_invitation_creates_participant(async_client):
+async def test_accept_invitation_creates_participant(async_client, db_session):
     organizer = await register_user(async_client, "org@example.com", "Org")
     t = (await async_client.post("/tournaments", json={"name": "T", "format": "round_robin"})).json()
     await async_client.post(f"/tournaments/{t['id']}/open")
     invitee = await register_user(async_client, "inv@example.com", "Inv")
+    await make_invitable(db_session, organizer, invitee)
     switch_user(async_client, organizer)
     inv = (
         await async_client.post(
@@ -142,11 +145,12 @@ async def test_accept_invitation_creates_participant(async_client):
 
 
 @pytest.mark.asyncio
-async def test_reject_invitation(async_client):
+async def test_reject_invitation(async_client, db_session):
     organizer = await register_user(async_client, "org@example.com", "Org")
     t = (await async_client.post("/tournaments", json={"name": "T", "format": "round_robin"})).json()
     await async_client.post(f"/tournaments/{t['id']}/open")
     invitee = await register_user(async_client, "inv@example.com", "Inv")
+    await make_invitable(db_session, organizer, invitee)
     switch_user(async_client, organizer)
     inv = (
         await async_client.post(
@@ -165,11 +169,12 @@ async def test_reject_invitation(async_client):
 
 
 @pytest.mark.asyncio
-async def test_cancel_pending_invitation_by_organizer(async_client):
+async def test_cancel_pending_invitation_by_organizer(async_client, db_session):
     organizer = await register_user(async_client, "org@example.com", "Org")
     t = (await async_client.post("/tournaments", json={"name": "T", "format": "round_robin"})).json()
     await async_client.post(f"/tournaments/{t['id']}/open")
     invitee = await register_user(async_client, "inv@example.com", "Inv")
+    await make_invitable(db_session, organizer, invitee)
     switch_user(async_client, organizer)
     inv = (
         await async_client.post(
@@ -198,6 +203,7 @@ async def test_accept_expired_invitation_returns_410(async_client, db_session):
     t = (await async_client.post("/tournaments", json={"name": "T", "format": "round_robin"})).json()
     await async_client.post(f"/tournaments/{t['id']}/open")
     invitee = await register_user(async_client, "inv@example.com", "Inv")
+    await make_invitable(db_session, organizer, invitee)
     switch_user(async_client, organizer)
     inv = (
         await async_client.post(
@@ -217,11 +223,12 @@ async def test_accept_expired_invitation_returns_410(async_client, db_session):
 
 
 @pytest.mark.asyncio
-async def test_remove_participant_while_draft(async_client):
+async def test_remove_participant_while_draft(async_client, db_session):
     organizer = await register_user(async_client, "org@example.com", "Org")
     t = (await async_client.post("/tournaments", json={"name": "T", "format": "round_robin"})).json()
     await async_client.post(f"/tournaments/{t['id']}/open")
     invitee = await register_user(async_client, "inv@example.com", "Inv")
+    await make_invitable(db_session, organizer, invitee)
     switch_user(async_client, organizer)
     inv = (
         await async_client.post(
@@ -256,11 +263,14 @@ async def test_start_tournament_rejects_below_minimum(async_client):
     assert resp.status_code == 409
 
 
-async def _onboard_participants(async_client, organizer, tournament_id: str, n: int) -> list[dict]:
+async def _onboard_participants(
+    async_client, db_session, organizer, tournament_id: str, n: int
+) -> list[dict]:
     names = ["Alice", "Bob", "Carol", "Dave", "Eve", "Frank", "Grace", "Hank"]
     participants = []
     for i in range(n):
         user = await register_user(async_client, f"p{i}@example.com", names[i])
+        await make_invitable(db_session, organizer, user)
         switch_user(async_client, organizer)
         inv = (
             await async_client.post(
@@ -276,11 +286,11 @@ async def _onboard_participants(async_client, organizer, tournament_id: str, n: 
 
 
 @pytest.mark.asyncio
-async def test_start_round_robin_generates_all_matches_and_codes(async_client):
+async def test_start_round_robin_generates_all_matches_and_codes(async_client, db_session):
     organizer = await register_user(async_client, "org@example.com", "Org")
     t = (await async_client.post("/tournaments", json={"name": "T", "format": "round_robin"})).json()
     await async_client.post(f"/tournaments/{t['id']}/open")
-    await _onboard_participants(async_client, organizer, t["id"], 4)
+    await _onboard_participants(async_client, db_session, organizer, t["id"], 4)
 
     resp = await async_client.post(f"/tournaments/{t['id']}/start")
     assert resp.status_code == 200
@@ -294,11 +304,11 @@ async def test_start_round_robin_generates_all_matches_and_codes(async_client):
 
 
 @pytest.mark.asyncio
-async def test_start_single_elim_generates_first_round_with_byes(async_client):
+async def test_start_single_elim_generates_first_round_with_byes(async_client, db_session):
     organizer = await register_user(async_client, "org@example.com", "Org")
     t = (await async_client.post("/tournaments", json={"name": "T", "format": "single_elim"})).json()
     await async_client.post(f"/tournaments/{t['id']}/open")
-    await _onboard_participants(async_client, organizer, t["id"], 6)
+    await _onboard_participants(async_client, db_session, organizer, t["id"], 6)
 
     resp = await async_client.post(f"/tournaments/{t['id']}/start")
     assert resp.status_code == 200

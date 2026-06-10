@@ -3,10 +3,10 @@ from __future__ import annotations
 
 import pytest
 
-from tests.helpers import register_user, switch_user
+from tests.helpers import make_invitable, register_user, switch_user
 
 
-async def _make_active_round_robin(async_client, n: int = 4):
+async def _make_active_round_robin(async_client, db_session, n: int = 4):
     organizer = await register_user(async_client, "org@example.com", "Org")
     t = (await async_client.post("/tournaments", json={"name": "T", "format": "round_robin"})).json()
     await async_client.post(f"/tournaments/{t['id']}/open")
@@ -14,6 +14,7 @@ async def _make_active_round_robin(async_client, n: int = 4):
     participants = []
     for i in range(n):
         u = await register_user(async_client, f"p{i}@example.com", names[i])
+        await make_invitable(db_session, organizer, u)
         switch_user(async_client, organizer)
         inv = (
             await async_client.post(
@@ -30,8 +31,8 @@ async def _make_active_round_robin(async_client, n: int = 4):
 
 
 @pytest.mark.asyncio
-async def test_get_standings_round_robin_initial_zero_points(async_client):
-    world = await _make_active_round_robin(async_client, n=4)
+async def test_get_standings_round_robin_initial_zero_points(async_client, db_session):
+    world = await _make_active_round_robin(async_client, db_session, n=4)
     resp = await async_client.get(f"/tournaments/{world['tournament']['id']}/standings")
     assert resp.status_code == 200
     standings = resp.json()
@@ -58,8 +59,8 @@ async def test_get_bracket_returns_404_for_round_robin(async_client):
 
 
 @pytest.mark.asyncio
-async def test_get_schedule_distinguishes_pending_and_manual(async_client):
-    world = await _make_active_round_robin(async_client, n=2)
+async def test_get_schedule_distinguishes_pending_and_manual(async_client, db_session):
+    world = await _make_active_round_robin(async_client, db_session, n=2)
     sched = (
         await async_client.get(f"/tournaments/{world['tournament']['id']}/schedule")
     ).json()

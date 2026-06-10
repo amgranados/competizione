@@ -5,7 +5,6 @@ import pytest
 
 from tests.helpers import register_user, switch_user
 
-
 # --- Phase 2: foundational auth ----------------------------------------
 
 

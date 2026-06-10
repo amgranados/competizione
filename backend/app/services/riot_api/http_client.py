@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
+from urllib.parse import quote
 
 import httpx
 
@@ -101,9 +102,11 @@ class HttpRiotAPIClient:
         the PUUID from the body; if it's missing (extremely rare) we fall
         back to a deterministic synthetic id to keep the model integrity.
         """
+        # L-02: escapar game_name/tag_line para que no rompan/alteren la ruta
+        # (p. ej. un "/" o caracteres reservados en el Riot ID).
         url = (
             f"{self._regional_host(region)}/riot/account/v1/accounts/by-riot-id/"
-            f"{game_name}/{tag_line}"
+            f"{quote(game_name, safe='')}/{quote(tag_line, safe='')}"
         )
         async with self._client() as client:
             response = await self._get(client, url)

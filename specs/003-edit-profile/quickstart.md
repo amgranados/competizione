@@ -18,7 +18,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES=15
 REFRESH_TOKEN_EXPIRE_DAYS=7
 FRONTEND_ORIGIN=http://localhost:5173
 COOKIES_SECURE=false               # true en producción/HTTPS
-RIOT_API_KEY=RGAPI-37090e86-adc0-4dab-8e84-340c485740ed
+RIOT_API_KEY=RGAPI-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 ```
 
 > Si **no** se define `RIOT_API_KEY`, `get_riot_api_client(settings)` devuelve `MockRiotAPIClient` con log `INFO Using MockRiotAPIClient: RIOT_API_KEY not set`. El sistema sigue siendo navegable pero los datos LoL serán los sembrados por el mock.

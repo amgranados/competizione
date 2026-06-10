@@ -12,7 +12,8 @@ from app.models.match import Match as MatchModel
 from app.models.participant import Participant as ParticipantModel
 from app.models.tournament import Tournament as TournamentModel
 from app.models.user import User
-from app.schemas.match import ManualResultRequest, Match as MatchSchema
+from app.schemas.match import ManualResultRequest
+from app.schemas.match import Match as MatchSchema
 from app.services import match_service
 
 router = APIRouter(tags=["matches"])

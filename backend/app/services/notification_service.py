@@ -38,6 +38,21 @@ async def create_notification(
     return notif
 
 
+async def create_notifications_bulk(
+    session: AsyncSession, notifications: Sequence[dict]
+) -> list[Notification]:
+    """I-05: inserta varias notificaciones en bloque (un único add_all + flush)
+    en vez de un add/flush por fila. Cada dict admite las mismas claves que
+    `create_notification` (user_id, type, tournament_id, match_id, ...).
+    """
+    rows = [Notification(**data) for data in notifications]
+    if not rows:
+        return []
+    session.add_all(rows)
+    await session.flush()
+    return rows
+
+
 async def list_for_user(
     session: AsyncSession, user_id: uuid.UUID, only_unread: bool = False
 ) -> Sequence[Notification]:

@@ -1,0 +1,35 @@
+# Override de PRODUCCIÓN. Uso:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Endurecimientos respecto a la base (M-05):
+#   - POSTGRES_PASSWORD SIN default: el arranque falla si no se define en el
+#     entorno / un .env no versionado (evita la credencial trivial).
+#   - Postgres deja de publicar puerto: sólo accesible por la red interna.
+#   - COOKIES_SECURE=true y ENVIRONMENT=production: cookies sólo HTTPS, docs
+#     interactivos desactivados, HSTS activo.
+#   - FORWARDED_ALLOW_IPS debe apuntar a la IP/red del reverse proxy (M-06).
+#
+# TLS: termina HTTPS en un reverse proxy delante (nginx/traefik/Caddy) que
+# reenvíe a frontend:80 y backend:8000 con X-Forwarded-* y certificados reales.
+services:
+  postgres:
+    environment:
+      # `?err` ⇒ Compose aborta si la variable no está definida (sin default).
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD es obligatorio en producción}
+    # Anula el mapeo de puertos de la base: Postgres no se expone al host.
+    ports: !reset []
+
+  backend:
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-competizione}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD es obligatorio en producción}@postgres:5432/${POSTGRES_DB:-competizione}
+      COOKIES_SECURE: "true"
+      ENVIRONMENT: "production"
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:?Define el origen HTTPS del frontend}
+      # IP/red del reverse proxy del que confiar X-Forwarded-For (NUNCA "*").
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:?Define la IP del reverse proxy}
+    # El backend no necesita publicarse al host si hay reverse proxy delante.
+    ports: !reset []
+
+  frontend:
+    # Servido tras el reverse proxy; no publicar el puerto directamente.
+    ports: !reset []

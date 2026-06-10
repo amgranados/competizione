@@ -34,20 +34,39 @@ def test_update_avatar_accepts_null_to_clear():
 
 
 def test_link_riot_account_validates_region_whitelist():
-    for region in ("europe", "asia", "americas"):
+    # El contrato vigente acepta códigos de PLATAFORMA (EUW1, KR, ...), no
+    # continentes. El continente se deriva en el servicio vía platform_to_continent.
+    for region in ("EUW1", "KR", "NA1", "LA2", "JP1"):
         schema = LinkRiotAccount(game_name="Faker", tag_line="KR1", region=region)
         assert schema.region == region
 
 
 def test_link_riot_account_rejects_unknown_region():
-    for bad in ("EUW1", "KR", "ZZZ", "Europe", ""):
+    # Continentes y valores arbitrarios ya NO son regiones válidas; sólo plataformas.
+    for bad in ("europe", "asia", "americas", "ZZZ", "euw1", "Europe", ""):
         with pytest.raises(ValidationError):
             LinkRiotAccount(game_name="Faker", tag_line="KR1", region=bad)
 
 
 def test_link_riot_account_requires_all_fields():
     with pytest.raises(ValidationError):
-        LinkRiotAccount(game_name="Faker", region="europe")  # type: ignore[call-arg]
+        LinkRiotAccount(game_name="Faker", region="EUW1")  # type: ignore[call-arg]
+
+
+def test_link_riot_account_rejects_path_and_control_chars():
+    # L-02: barras y caracteres de control no son válidos en un Riot ID.
+    for bad_name in ("Hide/Bush", "back\\slash", "ctrl\x00char", "tab\tchar"):
+        with pytest.raises(ValidationError):
+            LinkRiotAccount(game_name=bad_name, tag_line="EUW", region="EUW1")
+    for bad_tag in ("EU/W", "x\x1f"):
+        with pytest.raises(ValidationError):
+            LinkRiotAccount(game_name="Faker", tag_line=bad_tag, region="EUW1")
+
+
+def test_link_riot_account_allows_spaces_in_name():
+    # Los Riot ID admiten espacios; no deben rechazarse.
+    schema = LinkRiotAccount(game_name="Hide on bush", tag_line="KR1", region="KR")
+    assert schema.game_name == "Hide on bush"
 
 
 def test_delete_account_confirm_requires_string():

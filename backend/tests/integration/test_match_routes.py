@@ -5,13 +5,11 @@ Covers T072-T074.
 from __future__ import annotations
 
 import pytest
-from sqlalchemy import select
 
-from app.models.match import Match
-from tests.helpers import register_user, switch_user
+from tests.helpers import make_invitable, register_user, switch_user
 
 
-async def _tournament_with_4_participants(async_client):
+async def _tournament_with_4_participants(async_client, db_session):
     organizer = await register_user(async_client, "org@example.com", "Org")
     t = (await async_client.post("/tournaments", json={"name": "T", "format": "single_elim"})).json()
     await async_client.post(f"/tournaments/{t['id']}/open")
@@ -19,6 +17,7 @@ async def _tournament_with_4_participants(async_client):
     participants = []
     for i, n in enumerate(names):
         user = await register_user(async_client, f"p{i}@example.com", n)
+        await make_invitable(db_session, organizer, user)
         switch_user(async_client, organizer)
         inv = (
             await async_client.post(
@@ -36,7 +35,7 @@ async def _tournament_with_4_participants(async_client):
 
 @pytest.mark.asyncio
 async def test_manual_result_route_returns_match_with_tag(async_client, db_session):
-    world = await _tournament_with_4_participants(async_client)
+    world = await _tournament_with_4_participants(async_client, db_session)
     sched = (await async_client.get(f"/tournaments/{world['tournament']['id']}/schedule")).json()
     m = next(m for r in sched["rounds"] for m in r["matches"] if not m["is_bye"])
 
@@ -51,8 +50,8 @@ async def test_manual_result_route_returns_match_with_tag(async_client, db_sessi
 
 
 @pytest.mark.asyncio
-async def test_manual_result_route_organizer_only(async_client):
-    world = await _tournament_with_4_participants(async_client)
+async def test_manual_result_route_organizer_only(async_client, db_session):
+    world = await _tournament_with_4_participants(async_client, db_session)
     sched = (await async_client.get(f"/tournaments/{world['tournament']['id']}/schedule")).json()
     m = next(m for r in sched["rounds"] for m in r["matches"] if not m["is_bye"])
 
@@ -66,8 +65,8 @@ async def test_manual_result_route_organizer_only(async_client):
 
 
 @pytest.mark.asyncio
-async def test_manual_result_route_requires_auth(async_client):
-    world = await _tournament_with_4_participants(async_client)
+async def test_manual_result_route_requires_auth(async_client, db_session):
+    world = await _tournament_with_4_participants(async_client, db_session)
     sched = (await async_client.get(f"/tournaments/{world['tournament']['id']}/schedule")).json()
     m = next(m for r in sched["rounds"] for m in r["matches"] if not m["is_bye"])
     async_client.cookies.clear()
@@ -79,8 +78,8 @@ async def test_manual_result_route_requires_auth(async_client):
 
 
 @pytest.mark.asyncio
-async def test_get_match_hides_tournament_code_for_non_player(async_client):
-    world = await _tournament_with_4_participants(async_client)
+async def test_get_match_hides_tournament_code_for_non_player(async_client, db_session):
+    world = await _tournament_with_4_participants(async_client, db_session)
     sched = (await async_client.get(f"/tournaments/{world['tournament']['id']}/schedule")).json()
     # Pick match between participants[0] and participants[1]
     non_player = world["participants"][2]  # not in m1
@@ -120,8 +119,8 @@ async def test_get_match_hides_tournament_code_for_non_player(async_client):
 
 
 @pytest.mark.asyncio
-async def test_manual_result_with_invalid_winner_returns_409(async_client):
-    world = await _tournament_with_4_participants(async_client)
+async def test_manual_result_with_invalid_winner_returns_409(async_client, db_session):
+    world = await _tournament_with_4_participants(async_client, db_session)
     sched = (await async_client.get(f"/tournaments/{world['tournament']['id']}/schedule")).json()
     m = next(m for r in sched["rounds"] for m in r["matches"] if not m["is_bye"])
     # Use the organizer as "winner" — won't be a player of the match

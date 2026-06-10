@@ -61,6 +61,13 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 
+# SQLite / local DBs (nunca versionar bases de datos locales)
+*.db
+*.sqlite
+*.sqlite3
+*.sqlite3-journal
+/backend/competizione.db
+
 # Flask stuff:
 instance/
 .webassets-cache
@@ -233,6 +240,9 @@ __marimo__/
 .specify
 prompts
 Claude.md
+
+# Notas locales de sesión (no versionar)
+memory/
 
 # Node / frontend
 node_modules/

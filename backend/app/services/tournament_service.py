@@ -207,9 +207,10 @@ async def invite(
         raise InvitationConflict()
 
     # 004-add-friends: only friends with linked LoL account can be invited.
+    from sqlalchemy import and_, or_
+
     from app.models.friendship import Friendship
     from app.models.riot_account import RiotAccount
-    from sqlalchemy import and_, or_
 
     friendship_stmt = select(Friendship.id).where(
         Friendship.status == "accepted",
@@ -478,14 +479,17 @@ async def cancel(
     await session.flush()
 
     participants = await _active_participants(session, tournament_id)
-    for p in participants:
-        await notification_service.create_notification(
-            session,
-            user_id=p.user_id,
-            type="tournament_cancelled",
-            tournament_id=tournament_id,
-        )
-    await session.flush()
+    await notification_service.create_notifications_bulk(
+        session,
+        [
+            {
+                "user_id": p.user_id,
+                "type": "tournament_cancelled",
+                "tournament_id": tournament_id,
+            }
+            for p in participants
+        ],
+    )
     return tournament
 
 
@@ -529,14 +533,15 @@ async def start_tournament(
     tournament.started_at = _now()
     await session.flush()
 
-    # Notifications: tournament_started to all active participants.
-    for p in participants:
-        await notification_service.create_notification(
-            session,
-            user_id=p.user_id,
-            type="tournament_started",
-            tournament_id=tournament_id,
-        )
+    # I-05: acumular todas las notificaciones de arranque y volcarlas en bloque.
+    notifications: list[dict] = [
+        {
+            "user_id": p.user_id,
+            "type": "tournament_started",
+            "tournament_id": tournament_id,
+        }
+        for p in participants
+    ]
 
     # match_generated for each non-bye match (fetch matches fresh for ids).
     result = await session.execute(
@@ -547,12 +552,14 @@ async def start_tournament(
         for pid in (match.player1_id, match.player2_id):
             uid = by_participant.get(pid)
             if uid is not None:
-                await notification_service.create_notification(
-                    session,
-                    user_id=uid,
-                    type="match_generated",
-                    tournament_id=tournament_id,
-                    match_id=match.id,
+                notifications.append(
+                    {
+                        "user_id": uid,
+                        "type": "match_generated",
+                        "tournament_id": tournament_id,
+                        "match_id": match.id,
+                    }
                 )
-    await session.flush()
+
+    await notification_service.create_notifications_bulk(session, notifications)
     return tournament

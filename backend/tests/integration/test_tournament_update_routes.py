@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.helpers import register_user, switch_user
+from tests.helpers import make_invitable, register_user, switch_user
 
 
 @pytest.mark.asyncio
@@ -26,7 +26,7 @@ async def test_change_format_while_open(async_client):
 
 
 @pytest.mark.asyncio
-async def test_modify_after_start_returns_409(async_client):
+async def test_modify_after_start_returns_409(async_client, db_session):
     organizer = await register_user(async_client, "org@example.com", "Org")
     t = (await async_client.post("/tournaments", json={"name": "T", "format": "round_robin"})).json()
     await async_client.post(f"/tournaments/{t['id']}/open")
@@ -34,6 +34,7 @@ async def test_modify_after_start_returns_409(async_client):
     names = ["Alice", "Bob"]
     for i, n in enumerate(names):
         u = await register_user(async_client, f"p{i}@example.com", n)
+        await make_invitable(db_session, organizer, u)
         switch_user(async_client, organizer)
         inv = (
             await async_client.post(

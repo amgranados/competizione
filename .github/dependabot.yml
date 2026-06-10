@@ -1,0 +1,26 @@
+# L-04: actualizaciones automáticas de dependencias.
+# Mantiene al día requirements.txt del backend, las GitHub Actions del CI y los
+# Dockerfiles, abriendo PRs (que pasan por el CI bloqueante antes de mergear).
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /backend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # Agrupa actualizaciones menores/parche para reducir ruido de PRs.
+      backend-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /backend
+    schedule:
+      interval: weekly

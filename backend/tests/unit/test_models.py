@@ -4,7 +4,7 @@ from __future__ import annotations
 import uuid
 
 import pytest
-from sqlalchemy import inspect, select
+from sqlalchemy import inspect
 from sqlalchemy.exc import IntegrityError
 
 from app.models.riot_account import RiotAccount
@@ -33,10 +33,18 @@ async def test_riot_account_unique_per_user(db_session):
     db_session.add(user_a)
     await db_session.commit()
 
-    db_session.add(RiotAccount(user_id=user_a.id, puuid="puuid-A", region="EUW1"))
+    db_session.add(
+        RiotAccount(
+            user_id=user_a.id, puuid="puuid-A", game_name="Alice", tag_line="EUW", region="EUW1"
+        )
+    )
     await db_session.commit()
 
-    db_session.add(RiotAccount(user_id=user_a.id, puuid="puuid-A2", region="EUW1"))
+    db_session.add(
+        RiotAccount(
+            user_id=user_a.id, puuid="puuid-A2", game_name="Alice", tag_line="EUW", region="EUW1"
+        )
+    )
     with pytest.raises(IntegrityError):
         await db_session.commit()
     await db_session.rollback()
@@ -45,7 +53,7 @@ async def test_riot_account_unique_per_user(db_session):
 @pytest.mark.asyncio
 async def test_riot_account_unique_puuid_across_users(db_engine):
     """T005b: same PUUID cannot belong to two users (UNIQUE on puuid)."""
-    from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
     factory = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
 
@@ -57,11 +65,19 @@ async def test_riot_account_unique_puuid_across_users(db_engine):
         a_id, b_id = user_a.id, user_b.id
 
     async with factory() as session:
-        session.add(RiotAccount(user_id=a_id, puuid="shared-puuid", region="EUW1"))
+        session.add(
+            RiotAccount(
+                user_id=a_id, puuid="shared-puuid", game_name="Alice", tag_line="EUW", region="EUW1"
+            )
+        )
         await session.commit()
 
     async with factory() as session:
-        session.add(RiotAccount(user_id=b_id, puuid="shared-puuid", region="EUN1"))
+        session.add(
+            RiotAccount(
+                user_id=b_id, puuid="shared-puuid", game_name="Bob", tag_line="EUN", region="EUN1"
+            )
+        )
         with pytest.raises(IntegrityError):
             await session.commit()
 
@@ -73,7 +89,7 @@ async def test_riot_account_has_uuid_id_and_linked_at(db_session):
     db_session.add(user)
     await db_session.commit()
 
-    acc = RiotAccount(user_id=user.id, puuid="zpuuid", region="NA1")
+    acc = RiotAccount(user_id=user.id, puuid="zpuuid", game_name="Zoe", tag_line="NA", region="NA1")
     db_session.add(acc)
     await db_session.commit()
     await db_session.refresh(acc)

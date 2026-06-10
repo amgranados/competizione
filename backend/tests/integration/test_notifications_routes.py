@@ -6,16 +6,17 @@ from __future__ import annotations
 
 import pytest
 
-from tests.helpers import register_user, switch_user
+from tests.helpers import make_invitable, register_user, switch_user
 
 
 @pytest.mark.asyncio
-async def test_list_notifications_for_current_user(async_client):
+async def test_list_notifications_for_current_user(async_client, db_session):
     organizer = await register_user(async_client, "org@example.com", "Org")
     t = (await async_client.post("/tournaments", json={"name": "T", "format": "round_robin"})).json()
     await async_client.post(f"/tournaments/{t['id']}/open")
 
     invitee = await register_user(async_client, "inv@example.com", "Inv")
+    await make_invitable(db_session, organizer, invitee)
     switch_user(async_client, organizer)
     await async_client.post(
         f"/tournaments/{t['id']}/invitations", json={"invited_user_id": invitee["id"]}
@@ -30,11 +31,12 @@ async def test_list_notifications_for_current_user(async_client):
 
 
 @pytest.mark.asyncio
-async def test_mark_notification_read(async_client):
+async def test_mark_notification_read(async_client, db_session):
     organizer = await register_user(async_client, "org@example.com", "Org")
     t = (await async_client.post("/tournaments", json={"name": "T", "format": "round_robin"})).json()
     await async_client.post(f"/tournaments/{t['id']}/open")
     invitee = await register_user(async_client, "inv@example.com", "Inv")
+    await make_invitable(db_session, organizer, invitee)
     switch_user(async_client, organizer)
     await async_client.post(
         f"/tournaments/{t['id']}/invitations", json={"invited_user_id": invitee["id"]}
@@ -52,11 +54,12 @@ async def test_mark_notification_read(async_client):
 
 
 @pytest.mark.asyncio
-async def test_mark_other_users_notification_returns_404(async_client):
+async def test_mark_other_users_notification_returns_404(async_client, db_session):
     organizer = await register_user(async_client, "org@example.com", "Org")
     t = (await async_client.post("/tournaments", json={"name": "T", "format": "round_robin"})).json()
     await async_client.post(f"/tournaments/{t['id']}/open")
     invitee = await register_user(async_client, "inv@example.com", "Inv")
+    await make_invitable(db_session, organizer, invitee)
     switch_user(async_client, organizer)
     await async_client.post(
         f"/tournaments/{t['id']}/invitations", json={"invited_user_id": invitee["id"]}

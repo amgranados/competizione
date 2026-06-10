@@ -2,8 +2,6 @@ import re
 import statistics
 import time
 
-import pytest
-
 
 def _parse_set_cookie_names(headers):
     names = []
@@ -73,6 +71,16 @@ async def test_register_short_password_returns_422(async_client):
     response = await async_client.post(
         "/auth/register",
         json={"email": "short@example.com", "password": "short", "nickname": "Short"},
+    )
+    assert response.status_code == 422
+
+
+async def test_register_overlong_password_returns_422(async_client):
+    """L-06: contraseñas que exceden el límite de 72 bytes de bcrypt se rechazan
+    en lugar de truncarse silenciosamente."""
+    response = await async_client.post(
+        "/auth/register",
+        json={"email": "longpw@example.com", "password": "a" * 73, "nickname": "Longpw"},
     )
     assert response.status_code == 422
 

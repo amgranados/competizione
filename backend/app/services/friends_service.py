@@ -28,7 +28,6 @@ from app.schemas.friends import (
 from app.schemas.notification import NotificationType
 from app.services import notification_service
 
-
 # --- Domain exceptions ----------------------------------------------------
 
 

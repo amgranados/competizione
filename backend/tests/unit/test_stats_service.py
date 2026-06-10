@@ -10,7 +10,6 @@ Covers the 4 stat cards computed hot from the user's own history
 """
 from __future__ import annotations
 
-import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest

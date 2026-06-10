@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,16 +15,20 @@ from app.models.tournament import Tournament as TournamentModel
 from app.models.user import User
 from app.schemas.tournament import (
     Invitation as InvitationSchema,
+)
+from app.schemas.tournament import (
     InvitationCreate,
     RoundMatchSummary,
     RoundView,
     Schedule,
     StandingEntry,
-    Tournament as TournamentSchema,
     TournamentCreate,
     TournamentFormat,
     TournamentState,
     TournamentUpdate,
+)
+from app.schemas.tournament import (
+    Tournament as TournamentSchema,
 )
 from app.services import standings_service, tournament_service
 

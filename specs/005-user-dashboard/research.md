@@ -58,6 +58,23 @@ sources"). Todas las rutas de código citadas son del repo en `005-user-dashboar
   contrato del dashboard.
 - **Alternativas consideradas**: `'active'` (precedente frontend) — rechazado por el humano a
   favor de `in_progress`.
+- **RESOLUCIÓN (T030, 2026-06-09)**: Se eligió la **Opción 2** (mapear en la capa del
+  dashboard, **sin tocar el dominio**). Hechos verificados durante la implementación:
+  `tournament_service.start_tournament` asigna `state="active"`
+  ([tournament_service.py:507](../../backend/app/services/tournament_service.py#L507)) y
+  `TournamentState.ACTIVE = "active"`
+  ([schemas/tournament.py:19](../../backend/app/schemas/tournament.py#L19)); ningún punto del
+  dominio asigna `in_progress`. Para no romper el contrato del dashboard ({`in_progress`,`open`})
+  sin requerir aprobación humana para alterar transiciones (Constitution III/IV), el **read layer**
+  del dashboard trata ambos tokens como "en curso" mediante
+  `stats_service.IN_PROGRESS_STATES = ("in_progress","active")` y **normaliza** el token emitido a
+  `in_progress` en `dashboard_service.get_my_tournaments` (y lo cuenta en "Torneos activos").
+  El **frontend** queda unificado a `in_progress` por construcción: la nueva `Dashboard.jsx`
+  consume el endpoint (que ya normaliza) y `TournamentCard.jsx` mapea `in_progress`→"En curso";
+  no quedan literales `'active'` en la ruta del dashboard. El test
+  `test_my_tournaments_treats_domain_active_token_as_in_progress` fija este comportamiento.
+  La unificación del dominio (`active`→`in_progress`) o la introducción de una transición
+  open→in_progress siguen **fuera de alcance** y requieren aprobación humana.
 
 ---
 

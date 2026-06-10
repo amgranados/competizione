@@ -77,3 +77,36 @@ async def test_authenticate_user_raises_on_wrong_password(db_session):
     await auth_service.register_user(db_session, payload)
     with pytest.raises(auth_service.InvalidCredentials):
         await auth_service.authenticate_user(db_session, "d@example.com", "wrong")
+
+
+async def test_purge_expired_blacklist_removes_only_expired(db_session):
+    """I-02: la purga elimina las entradas caducadas y conserva las vigentes."""
+    import uuid
+    from datetime import datetime, timedelta, timezone
+
+    from sqlalchemy import select
+
+    from app.models.token_blacklist import TokenBlacklist
+    from app.models.user import User
+
+    user = User(email="p@example.com", nickname="Purge", password_hash="!")
+    db_session.add(user)
+    await db_session.commit()
+
+    now = datetime.now(timezone.utc)
+    expired_jti = uuid.uuid4()
+    live_jti = uuid.uuid4()
+    db_session.add_all(
+        [
+            TokenBlacklist(jti=expired_jti, user_id=user.id, expires_at=now - timedelta(hours=1)),
+            TokenBlacklist(jti=live_jti, user_id=user.id, expires_at=now + timedelta(hours=1)),
+        ]
+    )
+    await db_session.commit()
+
+    deleted = await auth_service.purge_expired_blacklist(db_session, now=now)
+    assert deleted == 1
+
+    remaining = (await db_session.execute(select(TokenBlacklist.jti))).scalars().all()
+    assert expired_jti not in remaining
+    assert live_jti in remaining

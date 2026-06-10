@@ -194,18 +194,21 @@ async def _finalize(session: AsyncSession, tournament: Tournament) -> None:
     tournament.state = "finished"
     tournament.finished_at = _now()
     await session.flush()
-    # Notify all active participants.
+    # Notify all active participants (I-05: inserción en bloque).
     result = await session.execute(
         select(Participant).where(
             Participant.tournament_id == tournament.id,
             Participant.removed.is_(False),
         )
     )
-    for p in result.scalars().all():
-        await notification_service.create_notification(
-            session,
-            user_id=p.user_id,
-            type="tournament_finished",
-            tournament_id=tournament.id,
-        )
-    await session.flush()
+    await notification_service.create_notifications_bulk(
+        session,
+        [
+            {
+                "user_id": p.user_id,
+                "type": "tournament_finished",
+                "tournament_id": tournament.id,
+            }
+            for p in result.scalars().all()
+        ],
+    )

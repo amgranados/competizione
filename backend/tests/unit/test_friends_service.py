@@ -11,7 +11,6 @@ from app.models.user import User
 from app.schemas.friends import FriendshipStatus
 from app.services import friends_service
 
-
 # --- Helpers -------------------------------------------------------------
 
 

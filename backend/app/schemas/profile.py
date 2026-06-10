@@ -5,10 +5,17 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl, StringConstraints
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    HttpUrl,
+    StringConstraints,
+    field_validator,
+)
 
 from app.services.riot_api.regions import PlatformRegion
-
 
 # --- Inputs --------------------------------------------------------------
 
@@ -32,6 +39,19 @@ class LinkRiotAccount(BaseModel):
     game_name: Annotated[str, Field(min_length=1, max_length=64)]
     tag_line: Annotated[str, Field(min_length=1, max_length=16)]
     region: PlatformRegion
+
+    @field_validator("game_name", "tag_line")
+    @classmethod
+    def _no_path_or_control_chars(cls, v: str) -> str:
+        """L-02 (defensa en profundidad): un Riot ID válido no contiene barras
+        ni caracteres de control. Esto, junto al url-encoding en el cliente HTTP,
+        impide manipular la ruta del endpoint de Riot. NO restringimos el resto
+        del juego de caracteres (los Riot ID admiten espacios y unicode)."""
+        if "/" in v or "\\" in v:
+            raise ValueError("Riot ID no puede contener barras")
+        if any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in v):
+            raise ValueError("Riot ID no puede contener caracteres de control")
+        return v
 
 
 class DeleteAccountConfirm(BaseModel):

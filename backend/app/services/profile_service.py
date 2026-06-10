@@ -20,7 +20,6 @@ from app.models.user import User
 from app.schemas.profile import (
     ChampionMasteryEntry,
     LinkedGameSummary,
-    ProfileBasic,
     ProfileResponse,
 )
 from app.services.riot_api import ddragon
@@ -29,9 +28,13 @@ from app.services.riot_api.regions import platform_to_continent
 
 logger = logging.getLogger(__name__)
 
-_MIN_PASSWORD_LENGTH = 8
 _MASTERY_DISPLAY_LIMIT = 10
-_ACTIVE_TOURNAMENT_STATES = ("open", "in_progress")
+# Estados que bloquean desvincular Riot / borrar cuenta (FR-014 / FR-023):
+# torneo en inscripción ("open") o en curso ("active", fijado por start_tournament).
+# OJO: "in_progress" NO existe en el enum TournamentState (DRAFT/OPEN/ACTIVE/
+# FINISHED/CANCELLED); usar ese literal hacía que el guard nunca matchease un
+# torneo en curso.
+_ACTIVE_TOURNAMENT_STATES = ("open", "active")
 
 
 # --- Domain exceptions ----------------------------------------------------
@@ -269,8 +272,11 @@ async def change_password(
     (HD-5). The current session is rotated by the caller (route layer) by
     issuing fresh access+refresh tokens whose `iat >= password_changed_at`.
     """
-    if len(new_password) < _MIN_PASSWORD_LENGTH:
-        raise WeakPasswordError
+    # L-06: política centralizada (longitud mínima + límite de 72 bytes bcrypt).
+    try:
+        security.validate_password_policy(new_password)
+    except security.PasswordPolicyError as exc:
+        raise WeakPasswordError(str(exc)) from exc
 
     user = await session.get(User, user_id)
     if user is None:
@@ -407,13 +413,18 @@ async def delete_account(
 
     nickname_value = await _generate_deleted_nickname(session)
 
+    now = datetime.now(timezone.utc)
     user.email = None
     user.nickname = nickname_value
     user.password_hash = "!"
     user.failed_login_attempts = 0
     user.locked_until = None
     user.avatar_url = None
-    user.deleted_at = datetime.now(timezone.utc)
+    user.deleted_at = now
+    # M-01: invalida cualquier refresh emitido antes de este instante (regla
+    # HD-5 en refresh_session), de modo que las sesiones en otros dispositivos
+    # de una cuenta borrada dejen de poder renovarse.
+    user.password_changed_at = now
 
     expires_at = datetime.now(timezone.utc) + timedelta(days=30)
     for jti in active_jtis or ():

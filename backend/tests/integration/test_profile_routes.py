@@ -27,7 +27,6 @@ async def test_get_profile_returns_basic_data_for_user_without_lol(async_client)
     assert body["email"] == "alice@example.com"
     assert body["avatar_url"] is None
     assert body["linked_games"] == []
-    assert body["lol_stats"] is None
 
 
 # ===== US1 — PATCH /nickname ============================================
@@ -207,9 +206,6 @@ from app.models.participant import Participant as ParticipantModel  # noqa: E402
 from app.models.tournament import Tournament as TournamentModel  # noqa: E402
 from app.services.riot_api.client import (  # noqa: E402
     ChampionMastery,
-    MatchSummary,
-    RankedEntry,
-    RankedStats,
     SummonerProfile,
 )
 from app.services.riot_api.mock_client import MockRiotAPIClient  # noqa: E402
@@ -231,13 +227,15 @@ async def test_post_link_lol_returns_201_and_persists(async_client, riot_mock):
 
     response = await async_client.post(
         "/api/profile/link/lol",
-        json={"game_name": "Faker", "tag_line": "KR1", "region": "asia"},
+        json={"game_name": "Faker", "tag_line": "KR1", "region": "KR"},
     )
 
     assert response.status_code == 201, response.text
     body = response.json()
     assert body["game"] == "lol"
-    assert body["region"] == "asia"
+    assert body["region"] == "KR"
+    assert body["game_name"] == "Faker"
+    assert body["tag_line"] == "KR1"
 
 
 @pytest.mark.asyncio
@@ -247,7 +245,7 @@ async def test_post_link_lol_returns_400_for_invalid_riot_id(async_client, riot_
 
     response = await async_client.post(
         "/api/profile/link/lol",
-        json={"game_name": "Bad", "tag_line": "X", "region": "europe"},
+        json={"game_name": "Bad", "tag_line": "X", "region": "EUW1"},
     )
 
     assert response.status_code == 400
@@ -272,7 +270,7 @@ async def test_post_link_lol_returns_503_when_riot_unavailable(async_client, rio
 
     response = await async_client.post(
         "/api/profile/link/lol",
-        json={"game_name": "X", "tag_line": "Y", "region": "europe"},
+        json={"game_name": "X", "tag_line": "Y", "region": "EUW1"},
     )
 
     assert response.status_code == 503
@@ -286,13 +284,13 @@ async def test_post_link_lol_returns_409_when_already_linked(async_client, riot_
 
     first = await async_client.post(
         "/api/profile/link/lol",
-        json={"game_name": "Faker", "tag_line": "KR1", "region": "asia"},
+        json={"game_name": "Faker", "tag_line": "KR1", "region": "KR"},
     )
     assert first.status_code == 201
 
     second = await async_client.post(
         "/api/profile/link/lol",
-        json={"game_name": "Other", "tag_line": "TAG", "region": "asia"},
+        json={"game_name": "Other", "tag_line": "TAG", "region": "KR"},
     )
     assert second.status_code == 409
 
@@ -303,7 +301,7 @@ async def test_delete_link_lol_returns_204_when_no_active_tournament(async_clien
     riot_mock.configured_puuids[("Faker", "KR1")] = "PUUID-FAKER"
     await async_client.post(
         "/api/profile/link/lol",
-        json={"game_name": "Faker", "tag_line": "KR1", "region": "asia"},
+        json={"game_name": "Faker", "tag_line": "KR1", "region": "KR"},
     )
 
     response = await async_client.delete("/api/profile/link/lol")
@@ -321,57 +319,57 @@ async def test_delete_link_lol_returns_404_when_not_linked(async_client, riot_mo
 
 @pytest.mark.asyncio
 async def test_get_profile_includes_lol_stats_in_payload(async_client, riot_mock):
+    """El perfil incorpora summoner_level + masteries en el linked_game (contrato
+    vigente de LinkedGameSummary; ranked/recent_matches viven en el dashboard)."""
     user = await register_user(async_client, "alice@example.com", "alice")
     riot_mock.configured_puuids[("Faker", "KR1")] = "PUUID-FAKER"
-    riot_mock.configured_summoner["PUUID-FAKER"] = SummonerProfile(120, "asia")
-    riot_mock.configured_ranked["PUUID-FAKER"] = RankedStats(
-        solo_duo=RankedEntry("RANKED_SOLO_5x5", "GOLD", "II", 50, 30, 20), flex=None
+    riot_mock.configured_summoner["PUUID-FAKER"] = SummonerProfile(
+        summoner_level=120, profile_icon_id=42, region="KR"
     )
     riot_mock.configured_mastery["PUUID-FAKER"] = [ChampionMastery(7, 7, 100_000)]
-    from datetime import datetime, timezone
-
-    riot_mock.configured_matches["PUUID-FAKER"] = [
-        MatchSummary("M1", datetime(2026, 4, 25, tzinfo=timezone.utc), 1500, 7, 5, 3, 9, True, "RANKED_SOLO")
-    ]
     await async_client.post(
         "/api/profile/link/lol",
-        json={"game_name": "Faker", "tag_line": "KR1", "region": "asia"},
+        json={"game_name": "Faker", "tag_line": "KR1", "region": "KR"},
     )
 
     response = await async_client.get("/api/profile")
 
     assert response.status_code == 200
     body = response.json()
-    assert body["linked_games"][0]["game"] == "lol"
-    stats = body["lol_stats"]
-    assert stats is not None
-    assert stats["summoner"]["unavailable"] is False
-    assert stats["summoner"]["data"]["summoner_level"] == 120
-    assert stats["ranked"]["solo_duo"]["tier"] == "GOLD"
-    assert stats["mastery"]["data"][0]["champion_id"] == 7
-    assert stats["recent_matches"]["data"][0]["match_id"] == "M1"
+    assert len(body["linked_games"]) == 1
+    lol = body["linked_games"][0]
+    assert lol["game"] == "lol"
+    assert lol["region"] == "KR"
+    assert lol["summoner_unavailable"] is False
+    assert lol["summoner_level"] == 120
+    assert lol["masteries_unavailable"] is False
+    assert lol["masteries"][0]["champion_id"] == 7
 
 
 @pytest.mark.asyncio
 async def test_get_profile_partial_riot_failure_marks_unavailable(async_client, riot_mock):
+    """Degradación parcial (HD-3): si una sección de Riot falla, el linked_game
+    marca esa sección como no disponible sin tumbar el resto del perfil."""
     await register_user(async_client, "alice@example.com", "alice")
     riot_mock.configured_puuids[("Faker", "KR1")] = "PUUID-FAKER"
-    riot_mock.configured_summoner["PUUID-FAKER"] = SummonerProfile(120, "asia")
-    riot_mock.configured_ranked["PUUID-FAKER"] = RankedStats(solo_duo=None, flex=None)
-    riot_mock.configured_mastery["PUUID-FAKER"] = []
-    riot_mock.unavailable_methods["get_recent_matches"] = {"PUUID-FAKER"}
+    riot_mock.configured_summoner["PUUID-FAKER"] = SummonerProfile(
+        summoner_level=120, profile_icon_id=1, region="KR"
+    )
+    # Mastery NOT seeded → el mock lanza RiotUnavailableError para esa sección.
+    riot_mock.unavailable_methods["get_champion_mastery"] = {"PUUID-FAKER"}
     await async_client.post(
         "/api/profile/link/lol",
-        json={"game_name": "Faker", "tag_line": "KR1", "region": "asia"},
+        json={"game_name": "Faker", "tag_line": "KR1", "region": "KR"},
     )
 
     response = await async_client.get("/api/profile")
 
     assert response.status_code == 200
-    stats = response.json()["lol_stats"]
-    assert stats["summoner"]["unavailable"] is False
-    assert stats["recent_matches"]["unavailable"] is True
-    assert stats["recent_matches"]["data"] is None
+    lol = response.json()["linked_games"][0]
+    assert lol["summoner_unavailable"] is False
+    assert lol["summoner_level"] == 120
+    assert lol["masteries_unavailable"] is True
+    assert lol["masteries"] == []
 
 
 # ===== US3 — DELETE /api/profile/me =====================================
@@ -404,8 +402,9 @@ async def test_delete_me_returns_400_when_confirmation_wrong(async_client):
 async def test_delete_me_returns_409_when_active_tournament(async_client, db_session):
     user = await register_user(async_client, "alice@example.com", "alice")
 
-    from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
     import uuid as uuid_mod
+
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
     factory = async_sessionmaker(db_session.bind, class_=AsyncSession, expire_on_commit=False)
     async with factory() as session:
@@ -442,17 +441,47 @@ async def test_login_after_delete_account_is_rejected(async_client):
 
 
 @pytest.mark.asyncio
+async def test_old_session_rejected_after_account_deletion(async_client):
+    """M-01: tras borrar la cuenta, las cookies emitidas previamente (que podrían
+    seguir vivas en otro dispositivo) son rechazadas tanto en endpoints
+    protegidos (access) como en /auth/refresh (refresh)."""
+    user = await register_user(async_client, "alice@example.com", "alice")
+    # Snapshot de las cookies de la sesión "del otro dispositivo".
+    old_cookies = dict(user["cookies"])
+    assert "access_token" in old_cookies and "refresh_token" in old_cookies
+
+    # Borra la cuenta (con la misma sesión).
+    delete_resp = await async_client.request(
+        "DELETE", "/api/profile/me", json={"confirmation": "alice"}
+    )
+    assert delete_resp.status_code == 204
+
+    # Reusa el access token viejo en un endpoint protegido → 401.
+    async_client.cookies.clear()
+    for name, value in old_cookies.items():
+        async_client.cookies.set(name, value)
+    protected = await async_client.get("/api/profile")
+    assert protected.status_code == 401, protected.text
+
+    # Reusa el refresh token viejo en /auth/refresh → 401.
+    async_client.cookies.clear()
+    async_client.cookies.set("refresh_token", old_cookies["refresh_token"])
+    refresh = await async_client.post("/auth/refresh")
+    assert refresh.status_code == 401, refresh.text
+
+
+@pytest.mark.asyncio
 async def test_delete_link_lol_returns_409_when_active_tournament(async_client, riot_mock, db_session):
     """Direct DB seeding to create an active-tournament participation."""
     user = await register_user(async_client, "alice@example.com", "alice")
     riot_mock.configured_puuids[("Faker", "KR1")] = "PUUID-FAKER"
     await async_client.post(
         "/api/profile/link/lol",
-        json={"game_name": "Faker", "tag_line": "KR1", "region": "asia"},
+        json={"game_name": "Faker", "tag_line": "KR1", "region": "KR"},
     )
 
     # Inject an active-state tournament + participant directly via the test session.
-    from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
     factory = async_sessionmaker(db_session.bind, class_=AsyncSession, expire_on_commit=False)
     async with factory() as session:
@@ -506,7 +535,9 @@ async def test_get_public_profile_returns_404_for_anonymized_user(async_client, 
 
     # Anonymize bob via direct DB write
     from datetime import datetime, timezone
-    from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
     from app.models.user import User as UserModel
 
     factory = async_sessionmaker(db_session.bind, class_=AsyncSession, expire_on_commit=False)

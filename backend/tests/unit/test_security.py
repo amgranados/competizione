@@ -19,6 +19,26 @@ def test_verify_password_accepts_correct_and_rejects_incorrect():
     assert security.verify_password("wrong", hashed) is False
 
 
+def test_password_policy_accepts_valid():
+    # Justo en el límite (72 bytes ASCII) es válido.
+    security.validate_password_policy("a" * 72)
+    security.validate_password_policy("hunter2-abc")
+
+
+def test_password_policy_rejects_too_short():
+    with pytest.raises(security.PasswordPolicyError):
+        security.validate_password_policy("short")
+
+
+def test_password_policy_rejects_over_72_bytes():
+    # 73 bytes ASCII supera el límite de truncado de bcrypt.
+    with pytest.raises(security.PasswordPolicyError):
+        security.validate_password_policy("a" * 73)
+    # Caracteres multibyte: 24 emojis (4 bytes c/u) = 96 bytes > 72.
+    with pytest.raises(security.PasswordPolicyError):
+        security.validate_password_policy("😀" * 24)
+
+
 def test_dummy_verify_runs_in_comparable_time():
     real_hash = security.hash_password("hunter2-abc")
     start = time.perf_counter()

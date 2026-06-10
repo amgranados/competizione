@@ -1,6 +1,7 @@
 """Shared helpers for integration tests (feature 002)."""
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 
@@ -50,3 +51,70 @@ def switch_user(client, user: dict[str, Any]) -> None:
 
 def logout_client(client) -> None:
     client.cookies.clear()
+
+
+async def make_invitable(
+    db_session,
+    inviter: dict[str, Any],
+    invitee: dict[str, Any],
+    *,
+    region: str = "EUW1",
+) -> None:
+    """Satisfy the 004-add-friends precondition for inviting `invitee`.
+
+    `tournament_service.invite` only allows inviting a user who is (1) an
+    *accepted* friend of the inviter and (2) has a linked Riot account. This
+    helper seeds both rows directly so invitation/start tests can focus on the
+    behaviour under test. Idempotent per (inviter, invitee) pair.
+    """
+    from sqlalchemy import and_, or_, select
+
+    from app.models.friendship import Friendship
+    from app.models.riot_account import RiotAccount
+
+    inviter_id = uuid.UUID(inviter["id"])
+    invitee_id = uuid.UUID(invitee["id"])
+
+    existing_friendship = (
+        await db_session.execute(
+            select(Friendship.id).where(
+                Friendship.status == "accepted",
+                or_(
+                    and_(
+                        Friendship.requester_id == inviter_id,
+                        Friendship.addressee_id == invitee_id,
+                    ),
+                    and_(
+                        Friendship.requester_id == invitee_id,
+                        Friendship.addressee_id == inviter_id,
+                    ),
+                ),
+            )
+        )
+    ).first()
+    if existing_friendship is None:
+        db_session.add(
+            Friendship(
+                requester_id=inviter_id,
+                addressee_id=invitee_id,
+                status="accepted",
+            )
+        )
+
+    has_riot = (
+        await db_session.execute(
+            select(RiotAccount.id).where(RiotAccount.user_id == invitee_id)
+        )
+    ).first()
+    if has_riot is None:
+        db_session.add(
+            RiotAccount(
+                user_id=invitee_id,
+                puuid=f"puuid-{invitee_id}",
+                game_name=invitee["nickname"],
+                tag_line="EUW",
+                region=region,
+            )
+        )
+
+    await db_session.commit()

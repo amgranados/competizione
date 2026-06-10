@@ -12,6 +12,9 @@ from app.services import auth_service
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 GENERIC_ERROR = "Credenciales inválidas"
+# L-01: mensaje genérico de registro para no revelar si el conflicto fue por
+# email o por nickname (evita enumeración de cuentas existentes).
+GENERIC_REGISTER_CONFLICT = "No se pudo completar el registro con esos datos"
 IP_RATE_LIMIT_ENABLED = True
 IP_RATE_LIMIT_RULE = "5/minute"
 
@@ -52,19 +55,27 @@ def set_auth_cookies(response: Response, access_token: str, refresh_token: str) 
     "/register",
     response_model=AuthenticatedUser,
     status_code=status.HTTP_201_CREATED,
-    responses={409: {"model": ErrorResponse}, 422: {"model": ErrorResponse}},
+    responses={
+        409: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+        429: {"model": ErrorResponse},
+    },
 )
+@limiter.limit(IP_RATE_LIMIT_RULE, exempt_when=lambda: not IP_RATE_LIMIT_ENABLED)
 async def register(
+    request: Request,
     payload: RegisterRequest,
     response: Response,
     session: AsyncSession = Depends(get_db),
 ) -> AuthenticatedUser:
     try:
         user = await auth_service.register_user(session, payload)
-    except auth_service.EmailAlreadyRegistered:
-        raise HTTPException(status_code=409, detail="El email ya está en uso")
-    except auth_service.NicknameAlreadyTaken:
-        raise HTTPException(status_code=409, detail="El nickname ya está en uso")
+    except security.PasswordPolicyError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except (auth_service.EmailAlreadyRegistered, auth_service.NicknameAlreadyTaken):
+        # L-01: 409 unificado (no distinguir email vs nickname) para no filtrar
+        # qué dato ya existe.
+        raise HTTPException(status_code=409, detail=GENERIC_REGISTER_CONFLICT)
     except auth_service.NicknameGenerationExhausted:
         raise HTTPException(status_code=500, detail="No se pudo asignar un nickname único")
 

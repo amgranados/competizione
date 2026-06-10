@@ -5,8 +5,6 @@ bye auto-resolution, tournament finalization, notifications.
 """
 from __future__ import annotations
 
-import uuid
-
 import pytest
 import pytest_asyncio
 from sqlalchemy import select

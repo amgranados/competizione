@@ -50,6 +50,9 @@ async def generate_unique_nickname(session: AsyncSession) -> str:
 
 
 async def register_user(session: AsyncSession, payload: RegisterRequest) -> User:
+    # L-06: política de contraseñas (incl. límite de 72 bytes de bcrypt).
+    security.validate_password_policy(payload.password)
+
     if await _email_exists(session, payload.email):
         raise EmailAlreadyRegistered
 
@@ -130,6 +133,24 @@ async def _blacklist_jti(session: AsyncSession, *, jti: uuid.UUID, user_id: uuid
     session.add(TokenBlacklist(jti=jti, user_id=user_id, expires_at=expires_at))
 
 
+async def purge_expired_blacklist(session: AsyncSession, *, now: datetime | None = None) -> int:
+    """I-02: borra de `token_blacklist` las filas ya caducadas (`expires_at < now`).
+
+    Un token cuyo `exp` ya pasó es rechazado igualmente por la verificación JWT,
+    así que mantenerlo en la blacklist sólo hincha la tabla. Devuelve el número de
+    filas eliminadas. Pensado para ejecutarse periódicamente (cron) vía el script
+    `python -m app.scripts.purge_blacklist`.
+    """
+    from sqlalchemy import delete
+
+    cutoff = now or datetime.now(timezone.utc)
+    result = await session.execute(
+        delete(TokenBlacklist).where(TokenBlacklist.expires_at < cutoff)
+    )
+    await session.commit()
+    return result.rowcount or 0
+
+
 async def refresh_session(session: AsyncSession, refresh_cookie: str | None) -> tuple[User, str, str]:
     """Verify a refresh token, rotate it (old jti → blacklist) and emit a new pair."""
     if not refresh_cookie:
@@ -151,6 +172,11 @@ async def refresh_session(session: AsyncSession, refresh_cookie: str | None) -> 
 
     user = await session.get(User, subject)
     if user is None:
+        raise InvalidCredentials
+
+    # M-01: una cuenta borrada (anonimizada) no puede renovar sesión, aunque su
+    # refresh token aún no haya caducado.
+    if user.deleted_at is not None:
         raise InvalidCredentials
 
     # HD-5: reject refresh tokens issued before the most recent password change.
