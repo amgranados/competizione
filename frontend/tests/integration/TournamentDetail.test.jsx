@@ -116,4 +116,52 @@ describe("TournamentDetail", () => {
     });
     expect(screen.getByText(/p1 vs p2/i)).toBeInTheDocument();
   });
+
+  it("shows an access error instead of loading forever when the tournament 404s", async () => {
+    seedUser({
+      email: "outsider@example.com",
+      password: "pw",
+      nickname: "Out",
+      authenticated: true,
+    });
+    // Nothing seeded: GET /tournaments/unknown responds 404, like the backend
+    // does for tournaments the user can't see.
+    renderDetail("unknown");
+    await waitFor(() => {
+      expect(screen.getByText(/Torneo no disponible/i)).toBeInTheDocument();
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent(/No tienes acceso/i);
+    expect(screen.queryByText(/Cargando torneo/i)).toBeNull();
+  });
+
+  it("lets the organizer join their own tournament with the Participar button", async () => {
+    seedUser({
+      email: "org@example.com",
+      password: "pw",
+      nickname: "Org",
+      authenticated: true,
+    });
+    const me = await (await fetch("http://localhost:8000/auth/me")).json();
+    seedTournament({
+      id: "t-4",
+      name: "Conmigo",
+      format: "round_robin",
+      state: "draft",
+      organizer_id: me.id,
+      participants: [],
+    });
+
+    const user = userEvent.setup();
+    renderDetail("t-4");
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Participar/i })).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("button", { name: /Participar/i }));
+
+    // The organizer now appears among the participants and the button is gone.
+    await waitFor(() => {
+      expect(screen.getByText(/Participantes \(1\)/i)).toBeInTheDocument();
+    });
+    expect(screen.queryByRole("button", { name: /Participar/i })).toBeNull();
+  });
 });

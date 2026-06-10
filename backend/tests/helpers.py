@@ -53,6 +53,38 @@ def logout_client(client) -> None:
     client.cookies.clear()
 
 
+async def link_riot(
+    db_session,
+    user: dict[str, Any],
+    *,
+    region: str = "EUW1",
+) -> None:
+    """Seed a linked Riot account for `user` (idempotent). Needed wherever the
+    linked-LoL invariant applies: being invited or, as organizer, joining your
+    own tournament."""
+    from sqlalchemy import select
+
+    from app.models.riot_account import RiotAccount
+
+    user_id = uuid.UUID(user["id"])
+    has_riot = (
+        await db_session.execute(
+            select(RiotAccount.id).where(RiotAccount.user_id == user_id)
+        )
+    ).first()
+    if has_riot is None:
+        db_session.add(
+            RiotAccount(
+                user_id=user_id,
+                puuid=f"puuid-{user_id}",
+                game_name=user["nickname"],
+                tag_line="EUW",
+                region=region,
+            )
+        )
+        await db_session.commit()
+
+
 async def make_invitable(
     db_session,
     inviter: dict[str, Any],

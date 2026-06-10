@@ -337,3 +337,60 @@ async def test_modify_by_non_organizer_forbidden(async_client):
     outsider = await register_user(async_client, "outsider@example.com", "Outsider")
     resp = await async_client.post(f"/tournaments/{t['id']}/open")
     assert resp.status_code == 403
+
+
+# --- POST /tournaments/{id}/join: organizer self-join -------------------
+
+
+@pytest.mark.asyncio
+async def test_organizer_with_linked_riot_can_join_own_tournament(async_client, db_session):
+    from tests.helpers import link_riot
+
+    organizer = await register_user(async_client, "org@example.com", "Org")
+    await link_riot(db_session, organizer)
+    created = (await async_client.post("/tournaments", json={"name": "T", "format": "round_robin"})).json()
+
+    resp = await async_client.post(f"/tournaments/{created['id']}/join")
+    assert resp.status_code == 200, resp.text
+    participants = resp.json()["participants"]
+    assert [p["user_id"] for p in participants] == [organizer["id"]]
+
+    # Joining twice conflicts.
+    again = await async_client.post(f"/tournaments/{created['id']}/join")
+    assert again.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_organizer_join_requires_linked_riot_account(async_client):
+    await register_user(async_client, "org@example.com", "Org")
+    created = (await async_client.post("/tournaments", json={"name": "T", "format": "round_robin"})).json()
+
+    resp = await async_client.post(f"/tournaments/{created['id']}/join")
+    assert resp.status_code == 409
+    assert "vincular" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_non_organizer_cannot_join_tournament(async_client, db_session):
+    from tests.helpers import link_riot
+
+    await register_user(async_client, "org@example.com", "Org")
+    created = (await async_client.post("/tournaments", json={"name": "T", "format": "round_robin"})).json()
+
+    other = await register_user(async_client, "other@example.com", "Other")
+    await link_riot(db_session, other)
+    resp = await async_client.post(f"/tournaments/{created['id']}/join")
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_organizer_cannot_join_after_terminal_state(async_client, db_session):
+    from tests.helpers import link_riot
+
+    organizer = await register_user(async_client, "org@example.com", "Org")
+    await link_riot(db_session, organizer)
+    created = (await async_client.post("/tournaments", json={"name": "T", "format": "round_robin"})).json()
+    await async_client.post(f"/tournaments/{created['id']}/cancel")
+
+    resp = await async_client.post(f"/tournaments/{created['id']}/join")
+    assert resp.status_code == 409

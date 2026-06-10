@@ -207,6 +207,27 @@ async def start_tournament(
     return await _tournament_to_schema(session, tournament)
 
 
+@router.post("/tournaments/{tournament_id}/join", response_model=TournamentSchema)
+async def join_tournament(
+    tournament_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> TournamentSchema:
+    """The organizer joins their own tournament as a participant."""
+    try:
+        tournament = await tournament_service.join(
+            session, tournament_id=tournament_id, user_id=current_user.id
+        )
+    except tournament_service.TournamentNotFound:
+        raise _not_found()
+    except tournament_service.Forbidden:
+        raise _forbidden()
+    except tournament_service.InvalidState as exc:
+        raise _conflict(str(exc))
+    await session.commit()
+    return await _tournament_to_schema(session, tournament)
+
+
 # -------------------------------- invitations --------------------------------
 
 

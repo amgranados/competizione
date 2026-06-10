@@ -36,7 +36,11 @@ const FORMAT_LABELS = {
 export default function TournamentDetail() {
   const { tournamentId } = useParams();
   const { user } = useAuth();
-  const { data: tournament, refresh: refreshTournament } = useTournament(tournamentId);
+  const {
+    data: tournament,
+    error: tournamentError,
+    refresh: refreshTournament,
+  } = useTournament(tournamentId);
   const { data: schedule, refresh: refreshSchedule } = useTournamentSchedule(tournamentId);
   const [invitations, setInvitations] = useState([]);
   const [invitedUserId, setInvitedUserId] = useState("");
@@ -112,6 +116,18 @@ export default function TournamentDetail() {
   };
 
   if (!tournament) {
+    if (tournamentError) {
+      return (
+        <Shell title="Torneo no disponible" back="/dashboard">
+          <Card hoverable={false}>
+            <p role="alert" style={{ color: T.tx2, fontSize: 13, margin: 0 }}>
+              No tienes acceso a este torneo o no existe. Solo los participantes
+              e invitados pueden verlo.
+            </p>
+          </Card>
+        </Shell>
+      );
+    }
     return (
       <Shell title="Cargando..." back="/dashboard">
         <p style={{ color: T.tx2 }}>Cargando torneo…</p>
@@ -119,8 +135,21 @@ export default function TournamentDetail() {
     );
   }
 
+  const isParticipant = (tournament.participants || []).some(
+    (p) => p.user_id === user?.id,
+  );
+
   const headerActions = isOrganizer && !isTerminal && (
     <>
+      {canEdit && !isParticipant && (
+        <Btn
+          size="sm"
+          variant="ghost"
+          onClick={() => runAction(() => tournamentApi.join(tournamentId))}
+        >
+          <Icon name="users" size={12} /> Participar
+        </Btn>
+      )}
       {tournament.state === "draft" && (
         <Btn size="sm" onClick={() => runAction(() => tournamentApi.openRegistration(tournamentId))}>
           <Icon name="play" size={12} /> Abrir inscripciones

@@ -122,6 +122,34 @@ export const tournamentHandlers = [
     return HttpResponse.json(t);
   }),
 
+  http.post(`${API}/tournaments/:id/join`, ({ params }) => {
+    const t = state.tournaments.get(params.id);
+    if (!t) return HttpResponse.json({ detail: "Not found" }, { status: 404 });
+    if (t.state !== "draft" && t.state !== "open") {
+      return HttpResponse.json(
+        { detail: "solo puedes unirte mientras el torneo no haya empezado" },
+        { status: 409 },
+      );
+    }
+    const participants = t.participants || [];
+    if (participants.some((p) => p.user_id === t.organizer_id)) {
+      return HttpResponse.json(
+        { detail: "ya eres participante de este torneo" },
+        { status: 409 },
+      );
+    }
+    t.participants = [
+      ...participants,
+      {
+        id: crypto.randomUUID(),
+        user_id: t.organizer_id,
+        nickname: "__organizer__",
+        accepted_at: new Date().toISOString(),
+      },
+    ];
+    return HttpResponse.json(t);
+  }),
+
   http.post(`${API}/tournaments/:id/open`, ({ params }) => {
     const t = state.tournaments.get(params.id);
     if (!t) return HttpResponse.json({ detail: "Not found" }, { status: 404 });

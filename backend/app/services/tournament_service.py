@@ -144,6 +144,64 @@ async def create(
     return tournament
 
 
+async def join(
+    session: AsyncSession, *, tournament_id: uuid.UUID, user_id: uuid.UUID
+) -> Tournament:
+    """The organizer joins their own tournament as a participant.
+
+    Regular users join via invitations only; this is the organizer's
+    counterpart, with the same linked-Riot-account invariant invitations
+    enforce on invitees.
+    """
+    tournament = await session.get(Tournament, tournament_id)
+    if tournament is None:
+        raise TournamentNotFound()
+    if tournament.organizer_id != user_id:
+        raise Forbidden()
+    if tournament.state not in ("draft", "open"):
+        raise InvalidState("solo puedes unirte mientras el torneo no haya empezado")
+
+    from app.models.riot_account import RiotAccount
+
+    riot = await session.execute(
+        select(RiotAccount.id).where(RiotAccount.user_id == user_id).limit(1)
+    )
+    if riot.first() is None:
+        raise InvalidState("necesitas vincular tu cuenta de LoL para participar")
+
+    existing = await session.execute(
+        select(Participant).where(
+            Participant.tournament_id == tournament_id,
+            Participant.user_id == user_id,
+        )
+    )
+    participant = existing.scalar_one_or_none()
+    if participant is not None and not participant.removed:
+        raise InvalidState("ya eres participante de este torneo")
+    if participant is None:
+        participant = Participant(
+            tournament_id=tournament_id,
+            user_id=user_id,
+            accepted_at=_now(),
+            removed=False,
+        )
+        session.add(participant)
+    else:
+        participant.removed = False
+        participant.accepted_at = _now()
+    await session.flush()
+
+    # 005-US3: record TOURNAMENT_JOIN for the organizer (actor).
+    await activity_service.record(
+        session,
+        actor_id=user_id,
+        event_type="TOURNAMENT_JOIN",
+        tournament_id=tournament.id,
+    )
+    await session.flush()
+    return tournament
+
+
 async def update(
     session: AsyncSession,
     *,

@@ -6,6 +6,7 @@ export const tournamentApi = {
     request("/tournaments", { method: "POST", body: { name, format, start_at } }),
   update: (id, payload) => request(`/tournaments/${id}`, { method: "PATCH", body: payload }),
   getById: (id) => request(`/tournaments/${id}`),
+  join: (id) => request(`/tournaments/${id}/join`, { method: "POST" }),
   openRegistration: (id) => request(`/tournaments/${id}/open`, { method: "POST" }),
   start: (id) => request(`/tournaments/${id}/start`, { method: "POST" }),
   cancel: (id) => request(`/tournaments/${id}/cancel`, { method: "POST" }),
