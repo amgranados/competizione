@@ -8,6 +8,7 @@ import Login from "./pages/Login.jsx";
 import Register from "./pages/Register.jsx";
 import Home from "./pages/Home.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
+import Tournaments from "./pages/Tournaments.jsx";
 import TournamentDetail from "./pages/TournamentDetail.jsx";
 import MatchDetail from "./pages/MatchDetail.jsx";
 import Profile from "./pages/Profile.jsx";
@@ -28,6 +29,14 @@ ReactDOM.createRoot(document.getElementById("root")).render(
               element={
                 <ProtectedRoute>
                   <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/tournaments"
+              element={
+                <ProtectedRoute>
+                  <Tournaments />
                 </ProtectedRoute>
               }
             />

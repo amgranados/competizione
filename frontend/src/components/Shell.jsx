@@ -7,7 +7,7 @@ import Icon from "./ui/Icon.jsx";
 
 const NAV_ITEMS = [
   { label: "Dashboard", to: "/dashboard", icon: "layout" },
-  { label: "Torneos", to: "/dashboard", icon: "trophy" },
+  { label: "Torneos", to: "/tournaments", icon: "trophy" },
   { label: "Perfil", to: "/profile", icon: "user" },
 ];
 
@@ -100,7 +100,10 @@ function Sidebar({ user, onLogout }) {
             label={item.label}
             to={item.to}
             icon={item.icon}
-            active={location.pathname === item.to}
+            active={
+              location.pathname === item.to ||
+              location.pathname.startsWith(`${item.to}/`)
+            }
           />
         ))}
       </nav>

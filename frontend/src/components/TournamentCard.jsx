@@ -6,12 +6,20 @@ import { T } from "../styles/theme.js";
 
 const STATE_LABELS = {
   in_progress: "En curso",
+  active: "En curso",
   open: "Próximo",
+  draft: "Borrador",
+  finished: "Finalizado",
+  cancelled: "Cancelado",
 };
 
 const STATE_VARIANTS = {
   in_progress: "ac",
+  active: "ac",
   open: "blue",
+  draft: "default",
+  finished: "green",
+  cancelled: "orange",
 };
 
 const FORMAT_LABELS = {
