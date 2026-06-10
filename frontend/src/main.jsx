@@ -11,6 +11,7 @@ import Dashboard from "./pages/Dashboard.jsx";
 import Tournaments from "./pages/Tournaments.jsx";
 import TournamentDetail from "./pages/TournamentDetail.jsx";
 import MatchDetail from "./pages/MatchDetail.jsx";
+import Friends from "./pages/Friends.jsx";
 import Profile from "./pages/Profile.jsx";
 import UserProfile from "./pages/UserProfile.jsx";
 import "./styles/global.css";
@@ -53,6 +54,14 @@ ReactDOM.createRoot(document.getElementById("root")).render(
               element={
                 <ProtectedRoute>
                   <MatchDetail />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/friends"
+              element={
+                <ProtectedRoute>
+                  <Friends />
                 </ProtectedRoute>
               }
             />

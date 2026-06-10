@@ -9,6 +9,8 @@ const state = {
   searchUsers: [],
   // Pending received requests (panel principal data)
   receivedRequests: [],
+  // Accepted friends (GET /api/friends)
+  friends: [],
   // Last action recorded — useful in tests
   lastAction: null,
 };
@@ -17,7 +19,12 @@ export function resetFriendsMockState() {
   state.publicProfiles = {};
   state.searchUsers = [];
   state.receivedRequests = [];
+  state.friends = [];
   state.lastAction = null;
+}
+
+export function seedFriends(friends) {
+  state.friends = friends;
 }
 
 export function seedSearchUsers(users) {
@@ -57,6 +64,10 @@ function setRelationshipStatusByUserId(userId, newStatus, requestId = null) {
 }
 
 export const friendsHandlers = [
+  http.get(`${API}/api/friends`, () => {
+    return HttpResponse.json(state.friends);
+  }),
+
   http.get(`${API}/api/friends/search`, ({ request }) => {
     const url = new URL(request.url);
     const q = (url.searchParams.get("q") ?? "").trim().toLowerCase();
@@ -114,6 +125,19 @@ export const friendsHandlers = [
 
   http.post(`${API}/api/friends/request/:requestId/accept`, ({ params }) => {
     state.lastAction = { type: "accept", requestId: params.requestId };
+    const accepted = state.receivedRequests.find((r) => r.id === params.requestId);
+    if (accepted) {
+      state.friends = [
+        ...state.friends,
+        {
+          id: accepted.requester_id ?? `u-${accepted.id}`,
+          nickname: accepted.requester_nickname,
+          avatar_url: accepted.requester_avatar_url ?? null,
+          relationship_status: "AMIGO",
+          pending_request_id: null,
+        },
+      ];
+    }
     state.receivedRequests = state.receivedRequests.filter((r) => r.id !== params.requestId);
     // Try to flip a row whose pending_request_id matches.
     for (const u of state.searchUsers) {
@@ -173,6 +197,7 @@ export const friendsHandlers = [
 
   http.delete(`${API}/api/friends/:userId`, ({ params }) => {
     state.lastAction = { type: "remove", userId: params.userId };
+    state.friends = state.friends.filter((f) => f.id !== params.userId);
     setRelationshipStatusByUserId(params.userId, "SIN_RELACION", null);
     return new HttpResponse(null, { status: 204 });
   }),

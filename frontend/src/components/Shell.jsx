@@ -8,6 +8,7 @@ import NotificationsBell from "./NotificationsBell.jsx";
 const NAV_ITEMS = [
   { label: "Dashboard", to: "/dashboard", icon: "layout" },
   { label: "Torneos", to: "/tournaments", icon: "trophy" },
+  { label: "Amigos", to: "/friends", icon: "users" },
   { label: "Perfil", to: "/profile", icon: "user" },
 ];
 

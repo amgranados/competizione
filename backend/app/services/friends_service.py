@@ -400,6 +400,49 @@ async def cancel_request(
     await session.commit()
 
 
+async def list_friends(
+    session: AsyncSession,
+    current_user_id: uuid.UUID,
+) -> list[UserSearchResult]:
+    """All friends (accepted friendships) of the current user, excluding
+    soft-deleted accounts. Returns the same shape as `search_users` for UI
+    reuse (relationship is AMIGO by definition).
+    """
+    stmt = (
+        select(User)
+        .join(
+            Friendship,
+            or_(
+                and_(
+                    Friendship.requester_id == current_user_id,
+                    Friendship.addressee_id == User.id,
+                ),
+                and_(
+                    Friendship.addressee_id == current_user_id,
+                    Friendship.requester_id == User.id,
+                ),
+            ),
+        )
+        .where(
+            Friendship.status == "accepted",
+            User.deleted_at.is_(None),
+            User.id != current_user_id,
+        )
+        .order_by(User.nickname.asc())
+    )
+    users = (await session.execute(stmt)).scalars().all()
+    return [
+        UserSearchResult(
+            id=user.id,
+            nickname=user.nickname,
+            avatar_url=user.avatar_url,
+            relationship_status=FriendshipStatus.AMIGO,
+            pending_request_id=None,
+        )
+        for user in users
+    ]
+
+
 async def list_invitable_friends(
     session: AsyncSession,
     current_user_id: uuid.UUID,

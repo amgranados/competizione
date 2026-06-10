@@ -1,6 +1,7 @@
 import { request } from "./authApi.js";
 
 export const friendsApi = {
+  getFriends: () => request("/api/friends"),
   searchUsers: (q) =>
     request(`/api/friends/search?q=${encodeURIComponent(q)}`),
   getReceivedRequests: () => request("/api/friends/requests"),

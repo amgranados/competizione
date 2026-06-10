@@ -21,6 +21,7 @@ function renderDashboard() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/tournaments" element={<div>Catálogo de torneos</div>} />
             <Route path="/tournaments/:tournamentId" element={<div>Torneo detail</div>} />
+            <Route path="/friends" element={<div>Página de amigos</div>} />
             <Route path="/users/:nickname" element={<div>Perfil de usuario</div>} />
           </Routes>
         </NotificationProvider>
@@ -51,6 +52,19 @@ describe("NotificationsBell", () => {
 
     await user.click(screen.getByText("Un torneo ha comenzado"));
     await waitFor(() => expect(screen.getByText("Torneo detail")).toBeInTheDocument());
+  });
+
+  it("navigates to the friends page when clicking a friend-request notification", async () => {
+    pushNotification({ id: "n1", user_id: "u1", type: "friend_request_received" });
+    const user = userEvent.setup();
+    renderDashboard();
+
+    await waitFor(() =>
+      expect(screen.getByLabelText(/1 notificaciones sin leer/i)).toBeInTheDocument(),
+    );
+    await user.click(screen.getByRole("button", { name: "Notificaciones" }));
+    await user.click(screen.getByText("Has recibido una solicitud de amistad"));
+    await waitFor(() => expect(screen.getByText("Página de amigos")).toBeInTheDocument());
   });
 
   it("clears the unread badge with 'Marcar todas como leídas'", async () => {

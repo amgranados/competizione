@@ -26,6 +26,15 @@ _CONFLICT_DETAILS = {
 }
 
 
+@router.get("", response_model=list[UserSearchResult])
+async def list_friends(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> list[UserSearchResult]:
+    """All accepted friends of the authenticated user."""
+    return await friends_service.list_friends(session, current_user.id)
+
+
 @router.get("/search", response_model=list[UserSearchResult])
 async def search(
     q: str = Query(default="", max_length=64),

@@ -22,7 +22,7 @@ const TYPE_LABELS = {
 function targetFor(notification) {
   const { type, tournament_id, match_id } = notification;
   if (type === "friend_request_received" || type === "friend_request_accepted") {
-    return "/dashboard";
+    return "/friends";
   }
   // The pending-invitations panel (accept/reject) lives in the Tournaments page.
   if (type === "invitation_received") return "/tournaments";

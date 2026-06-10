@@ -359,3 +359,50 @@ async def test_concurrent_cross_requests_only_one_succeeds(async_client):
     second = await async_client.post(f"/api/friends/request/{alice['id']}")
     assert second.status_code == 409
     assert "ya te ha enviado" in second.json()["detail"]
+
+
+# --- GET /api/friends: friends list ------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_list_friends_requires_authentication(async_client):
+    async_client.cookies.clear()
+    response = await async_client.get("/api/friends")
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_list_friends_returns_only_accepted_friendships(async_client):
+    bob = await register_user(async_client, "bob@example.com", "bob")
+    carol = await register_user(async_client, "carol@example.com", "carol")
+    alice = await register_user(async_client, "alice@example.com", "alice")
+
+    # alice -> bob accepted; alice -> carol stays pending.
+    switch_user(async_client, alice)
+    accepted = await async_client.post(f"/api/friends/request/{bob['id']}")
+    request_id = accepted.json()["id"]
+    await async_client.post(f"/api/friends/request/{carol['id']}")
+
+    switch_user(async_client, bob)
+    assert (await async_client.post(f"/api/friends/request/{request_id}/accept")).status_code == 200
+
+    switch_user(async_client, alice)
+    response = await async_client.get("/api/friends")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert [f["nickname"] for f in body] == ["bob"]
+    assert body[0]["id"] == bob["id"]
+    assert body[0]["relationship_status"] == "AMIGO"
+
+    # The friendship is bidirectional: bob sees alice too.
+    switch_user(async_client, bob)
+    response = await async_client.get("/api/friends")
+    assert [f["nickname"] for f in response.json()] == ["alice"]
+
+
+@pytest.mark.asyncio
+async def test_list_friends_empty_when_no_friends(async_client):
+    await register_user(async_client, "alice@example.com", "alice")
+    response = await async_client.get("/api/friends")
+    assert response.status_code == 200
+    assert response.json() == []
