@@ -85,7 +85,7 @@ describe("TournamentDetail", () => {
     expect(screen.queryByRole("button", { name: /Abrir inscripciones/i })).toBeNull();
   });
 
-  it("renders the schedule when present", async () => {
+  it("renders the schedule with player names and a visible link to the match", async () => {
     seedUser({
       email: "player@example.com",
       password: "pw",
@@ -98,7 +98,10 @@ describe("TournamentDetail", () => {
       format: "round_robin",
       state: "active",
       organizer_id: "somebody",
-      participants: [],
+      participants: [
+        { id: "p1", user_id: "u1", nickname: "Alice", accepted_at: "2026-06-01T10:00:00Z" },
+        { id: "p2", user_id: "u2", nickname: "Bob", accepted_at: "2026-06-01T11:00:00Z" },
+      ],
     });
     seedMatch({
       id: "m-1",
@@ -114,7 +117,11 @@ describe("TournamentDetail", () => {
     await waitFor(() => {
       expect(screen.getByText(/Ronda 1/i)).toBeInTheDocument();
     });
-    expect(screen.getByText(/p1 vs p2/i)).toBeInTheDocument();
+    // The match row shows both nicknames, the VS separator and the call to action.
+    const row = screen.getByRole("link", { name: /Ver partida Alice contra Bob/i });
+    expect(row).toHaveAttribute("href", "/matches/m-1");
+    expect(screen.getByText("VS")).toBeInTheDocument();
+    expect(screen.getByText(/Ver partida/i)).toBeInTheDocument();
   });
 
   it("shows an access error instead of loading forever when the tournament 404s", async () => {

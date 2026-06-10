@@ -139,6 +139,11 @@ export default function TournamentDetail() {
     (p) => p.user_id === user?.id,
   );
 
+  // participant.id → nickname, para mostrar nombres en calendario y cuadro.
+  const participantNames = Object.fromEntries(
+    (tournament.participants || []).map((p) => [p.id, p.nickname]),
+  );
+
   const headerActions = isOrganizer && !isTerminal && (
     <>
       {canEdit && !isParticipant && (
@@ -291,9 +296,9 @@ export default function TournamentDetail() {
                 title={tournament.format === "single_elim" ? "Cuadro" : "Calendario"}
               />
               {tournament.format === "single_elim" ? (
-                <TournamentBracket schedule={schedule} />
+                <TournamentBracket schedule={schedule} names={participantNames} />
               ) : (
-                <ScheduleList schedule={schedule} />
+                <ScheduleList schedule={schedule} names={participantNames} />
               )}
             </Card>
           )}
@@ -563,7 +568,43 @@ const iconButtonStyle = {
   transition: "color .12s",
 };
 
-function ScheduleList({ schedule }) {
+function playerName(names, participantId) {
+  if (!participantId) return "—";
+  return names?.[participantId] ?? participantId.slice(0, 8);
+}
+
+function MatchPlayer({ name, winner, align = "left" }) {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 8,
+        flexDirection: align === "right" ? "row-reverse" : "row",
+        minWidth: 0,
+        flex: 1,
+        justifyContent: align === "right" ? "flex-start" : "flex-end",
+      }}
+    >
+      <span
+        style={{
+          fontSize: 13,
+          fontWeight: winner ? 700 : 500,
+          color: winner ? T.tx : T.tx2,
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+      >
+        {name}
+      </span>
+      {winner && <Icon name="trophy" size={12} color={T.ac} />}
+      <Ava name={name} size={26} ring={winner} />
+    </span>
+  );
+}
+
+function ScheduleList({ schedule, names }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       {schedule.rounds.map((r) => (
@@ -580,49 +621,100 @@ function ScheduleList({ schedule }) {
           >
             Ronda {r.number}
           </div>
-          <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 0 }}>
-            {r.matches.map((m, idx, arr) => (
-              <li
-                key={m.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  padding: "10px 0",
-                  borderBottom: idx < arr.length - 1 ? `1px solid ${T.bd}` : "none",
-                }}
-              >
+          <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 8 }}>
+            {r.matches.map((m) => (
+              <li key={m.id}>
                 {m.is_bye ? (
-                  <>
-                    <Tag>Bye</Tag>
-                    <span style={{ fontFamily: T.fM, color: T.tx2, fontSize: 12 }}>
-                      {m.player1_id.slice(0, 8)}
-                    </span>
-                  </>
-                ) : (
-                  <Link
-                    to={`/matches/${m.id}`}
+                  <div
                     style={{
                       display: "flex",
                       alignItems: "center",
                       gap: 12,
-                      flex: 1,
+                      padding: "10px 14px",
+                      background: T.s3,
+                      border: `1px dashed ${T.bd}`,
+                      borderRadius: T.r,
+                    }}
+                  >
+                    <Tag>Bye</Tag>
+                    <span style={{ fontSize: 13, color: T.tx2 }}>
+                      {playerName(names, m.player1_id)} descansa esta ronda
+                    </span>
+                  </div>
+                ) : (
+                  <Link
+                    to={`/matches/${m.id}`}
+                    aria-label={`Ver partida ${playerName(names, m.player1_id)} contra ${playerName(names, m.player2_id)}`}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 14,
+                      padding: "12px 14px",
+                      background: T.s3,
+                      border: `1px solid ${T.bd}`,
+                      borderRadius: T.r,
                       textDecoration: "none",
                       color: "inherit",
+                      transition: "border-color .12s, background .12s",
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.borderColor = T.ac;
+                      e.currentTarget.style.background = T.s4;
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.borderColor = T.bd;
+                      e.currentTarget.style.background = T.s3;
                     }}
                   >
                     <Tag variant={m.state === "manual" ? "green" : "default"}>
                       {m.state === "manual" ? "Resuelto" : "Pendiente"}
                     </Tag>
-                    <span style={{ fontFamily: T.fM, color: T.tx2, fontSize: 12, flex: 1 }}>
-                      {m.player1_id.slice(0, 8)} vs {m.player2_id?.slice(0, 8)}
-                    </span>
-                    {m.tournament_code && (
-                      <span style={{ fontFamily: T.fM, color: T.tx3, fontSize: 10 }}>
-                        {m.tournament_code.slice(0, 8)}
+                    <span
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                        flex: 1,
+                        minWidth: 0,
+                      }}
+                    >
+                      <MatchPlayer
+                        name={playerName(names, m.player1_id)}
+                        winner={m.winner_participant_id === m.player1_id}
+                      />
+                      <span
+                        style={{
+                          fontFamily: T.fH,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          letterSpacing: 1,
+                          color: T.ac,
+                          flexShrink: 0,
+                        }}
+                      >
+                        VS
                       </span>
-                    )}
-                    <Icon name="arrowRight" size={12} color={T.tx3} />
+                      <MatchPlayer
+                        name={playerName(names, m.player2_id)}
+                        winner={m.winner_participant_id === m.player2_id}
+                        align="right"
+                      />
+                    </span>
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        fontFamily: T.fM,
+                        fontSize: 10,
+                        letterSpacing: 1,
+                        textTransform: "uppercase",
+                        color: T.tx3,
+                        flexShrink: 0,
+                      }}
+                    >
+                      Ver partida <Icon name="arrowRight" size={12} />
+                    </span>
                   </Link>
                 )}
               </li>

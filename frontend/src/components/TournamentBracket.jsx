@@ -2,7 +2,12 @@ import { Link } from "react-router-dom";
 import { T } from "../styles/theme.js";
 import Tag from "./ui/Tag.jsx";
 
-export default function TournamentBracket({ schedule }) {
+function playerName(names, participantId) {
+  if (!participantId) return "—";
+  return names?.[participantId] ?? participantId.slice(0, 8);
+}
+
+export default function TournamentBracket({ schedule, names }) {
   if (!schedule || !schedule.rounds || schedule.rounds.length === 0) {
     return <p style={{ color: T.tx3, fontSize: 12 }}>Cuadro aún no generado.</p>;
   }
@@ -40,12 +45,12 @@ export default function TournamentBracket({ schedule }) {
             {round.matches.map((m) => (
               <li key={m.id}>
                 {m.is_bye ? (
-                  <BracketSlot label={`${m.player1_id.slice(0, 8)} (bye)`} subtle />
+                  <BracketSlot label={`${playerName(names, m.player1_id)} (bye)`} subtle />
                 ) : (
                   <Link to={`/matches/${m.id}`} style={{ textDecoration: "none" }}>
                     <BracketSlot
-                      label1={m.player1_id.slice(0, 8)}
-                      label2={m.player2_id?.slice(0, 8)}
+                      label1={playerName(names, m.player1_id)}
+                      label2={playerName(names, m.player2_id)}
                       state={m.state}
                       winnerId={m.winner_participant_id}
                       p1Id={m.player1_id}
