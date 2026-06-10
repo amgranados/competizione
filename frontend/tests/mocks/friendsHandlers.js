@@ -114,6 +114,7 @@ export const friendsHandlers = [
 
   http.post(`${API}/api/friends/request/:requestId/accept`, ({ params }) => {
     state.lastAction = { type: "accept", requestId: params.requestId };
+    state.receivedRequests = state.receivedRequests.filter((r) => r.id !== params.requestId);
     // Try to flip a row whose pending_request_id matches.
     for (const u of state.searchUsers) {
       if (u.pending_request_id === params.requestId) {
@@ -135,6 +136,7 @@ export const friendsHandlers = [
 
   http.post(`${API}/api/friends/request/:requestId/reject`, ({ params }) => {
     state.lastAction = { type: "reject", requestId: params.requestId };
+    state.receivedRequests = state.receivedRequests.filter((r) => r.id !== params.requestId);
     for (const u of state.searchUsers) {
       if (u.pending_request_id === params.requestId) {
         setRelationshipStatusByUserId(u.id, "SIN_RELACION", null);

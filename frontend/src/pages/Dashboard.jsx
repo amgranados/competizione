@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { dashboardApi } from "../api/dashboardApi.js";
+import { friendsApi } from "../api/friendsApi.js";
 import { useNotifications } from "../context/NotificationContext.jsx";
 import Shell from "../components/Shell.jsx";
 import Card from "../components/ui/Card.jsx";
+import Btn from "../components/ui/Btn.jsx";
 import StatsCard from "../components/StatsCard.jsx";
 import TournamentCard from "../components/TournamentCard.jsx";
 import ActivityFeed from "../components/ActivityFeed.jsx";
@@ -19,23 +21,47 @@ function formatWinrate(winrate, gamesPlayed) {
 export default function Dashboard() {
   const { notifications } = useNotifications();
   const [data, setData] = useState(null);
+  const [friendRequests, setFriendRequests] = useState([]);
   const [error, setError] = useState(null);
+
+  const load = useCallback(async () => {
+    const [dashboard, requests] = await Promise.all([
+      dashboardApi.getDashboard(),
+      friendsApi.getReceivedRequests().catch(() => []),
+    ]);
+    setData(dashboard);
+    setFriendRequests(requests);
+  }, []);
 
   useEffect(() => {
     let active = true;
-    dashboardApi
-      .getDashboard()
-      .then((d) => {
-        if (active) setData(d);
-      })
-      .catch((err) => {
-        if (active) setError(err.message || "No se pudo cargar el dashboard");
-      });
+    load().catch((err) => {
+      if (active) setError(err.message || "No se pudo cargar el dashboard");
+    });
     return () => {
       active = false;
     };
     // Re-fetch when notifications change (new events may have arrived).
-  }, [notifications]);
+  }, [load, notifications]);
+
+  const acceptFriendRequest = async (requestId) => {
+    setError(null);
+    try {
+      await friendsApi.acceptRequest(requestId);
+      await load();
+    } catch (err) {
+      setError(err.message || "No se pudo aceptar la solicitud");
+    }
+  };
+  const rejectFriendRequest = async (requestId) => {
+    setError(null);
+    try {
+      await friendsApi.rejectRequest(requestId);
+      await load();
+    } catch (err) {
+      setError(err.message || "No se pudo rechazar la solicitud");
+    }
+  };
 
   const stats = data?.stats;
 
@@ -89,6 +115,66 @@ export default function Dashboard() {
         />
         <StatsCard label="Amigos" value={stats?.friends_count ?? 0} />
       </div>
+
+      {/* Pending friend requests */}
+      {friendRequests.length > 0 && (
+        <section style={{ marginBottom: 28 }}>
+          <SectionHeader title="Solicitudes de amistad" />
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {friendRequests.map((req) => (
+              <Card key={req.id} hoverable={false}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <Link
+                    to={`/users/${encodeURIComponent(req.requester_nickname)}`}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      textDecoration: "none",
+                      color: "inherit",
+                      minWidth: 0,
+                    }}
+                  >
+                    <Icon name="user" size={16} color={T.ac} />
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>
+                        {req.requester_nickname}
+                      </div>
+                      <div
+                        style={{
+                          fontFamily: T.fM,
+                          fontSize: 10,
+                          letterSpacing: 1,
+                          color: T.tx3,
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        quiere ser tu amigo · {new Date(req.created_at).toLocaleString()}
+                      </div>
+                    </div>
+                  </Link>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <Btn size="sm" onClick={() => acceptFriendRequest(req.id)}>
+                      <Icon name="check" size={12} /> Aceptar
+                    </Btn>
+                    <Btn size="sm" variant="ghost" onClick={() => rejectFriendRequest(req.id)}>
+                      <Icon name="x" size={12} /> Rechazar
+                    </Btn>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* My tournaments */}
       <section style={{ marginBottom: 28 }}>

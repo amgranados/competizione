@@ -1,9 +1,9 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { T } from "../styles/theme.js";
 import { useAuth } from "../hooks/useAuth.js";
-import { useNotifications } from "../context/NotificationContext.jsx";
 import Ava from "./ui/Ava.jsx";
 import Icon from "./ui/Icon.jsx";
+import NotificationsBell from "./NotificationsBell.jsx";
 
 const NAV_ITEMS = [
   { label: "Dashboard", to: "/dashboard", icon: "layout" },
@@ -13,8 +13,6 @@ const NAV_ITEMS = [
 
 export default function Shell({ title, subtitle, back, actions, children }) {
   const { user, logout } = useAuth();
-  const { notifications } = useNotifications();
-  const unread = (notifications || []).filter((n) => !n.read_at).length;
 
   return (
     <div
@@ -35,7 +33,6 @@ export default function Shell({ title, subtitle, back, actions, children }) {
           subtitle={subtitle}
           back={back}
           actions={actions}
-          unread={unread}
           user={user}
         />
         <div
@@ -197,7 +194,7 @@ function NavItem({ label, to, icon, active }) {
   );
 }
 
-function TopBar({ title, subtitle, back, actions, unread, user }) {
+function TopBar({ title, subtitle, back, actions, user }) {
   const navigate = useNavigate();
   return (
     <header
@@ -272,37 +269,7 @@ function TopBar({ title, subtitle, back, actions, unread, user }) {
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
         {actions}
-        <div
-          style={{
-            position: "relative",
-            width: 34,
-            height: 34,
-            borderRadius: "50%",
-            background: T.s2,
-            border: `1px solid ${T.bd}`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: T.tx2,
-          }}
-        >
-          <Icon name="bell" size={15} />
-          {unread > 0 && (
-            <span
-              aria-label={`${unread} notificaciones sin leer`}
-              style={{
-                position: "absolute",
-                top: 6,
-                right: 6,
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                background: T.ac,
-                border: `2px solid ${T.s2}`,
-              }}
-            />
-          )}
-        </div>
+        <NotificationsBell />
         {user && <Ava name={user.nickname} size={34} ring src={user.avatar_url} />}
       </div>
     </header>
