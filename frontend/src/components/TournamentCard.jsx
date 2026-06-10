@@ -51,7 +51,7 @@ export default function TournamentCard({ tournament }) {
     current_round,
     start_at,
   } = tournament;
-  const inProgress = state === "in_progress";
+  const inProgress = state === "in_progress" || state === "active";
   const startLabel = formatDate(start_at);
 
   return (
