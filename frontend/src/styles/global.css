@@ -33,6 +33,20 @@ textarea {
   font-family: inherit;
 }
 
+/* Dark theme for native widgets: the <select> popup list and the
+   datetime-local calendar indicator follow the page's color scheme
+   instead of defaulting to the light OS rendering. */
+input,
+select,
+textarea {
+  color-scheme: dark;
+}
+
+select option {
+  background-color: #1e1e27;
+  color: #eaeaf0;
+}
+
 a {
   color: var(--ac);
   text-decoration: none;
