@@ -10,6 +10,7 @@ from __future__ import annotations
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.invitation import Invitation
 from app.models.match import Match
 from app.models.participant import Participant
 from app.models.tournament import Tournament
@@ -121,11 +122,45 @@ def _stats_to_schema(stats: stats_service.StatsResult) -> StatsCards:
     )
 
 
-def _activity_to_schema(entries: list[activity_service.ActivityEntry]) -> list[ActivityEvent]:
+async def _accessible_tournament_ids(
+    session: AsyncSession, user_id, tournament_ids: set
+) -> set:
+    """Tournaments (among `tournament_ids`) the user can open: organizer,
+    active participant or pending invitee — the same rule as
+    `tournament_service._user_can_see` / GET /tournaments/{id}."""
+    if not tournament_ids:
+        return set()
+    ids = list(tournament_ids)
+    organizer_q = select(Tournament.id).where(
+        Tournament.id.in_(ids), Tournament.organizer_id == user_id
+    )
+    participant_q = select(Participant.tournament_id).where(
+        Participant.tournament_id.in_(ids),
+        Participant.user_id == user_id,
+        Participant.removed.is_(False),
+    )
+    invitation_q = select(Invitation.tournament_id).where(
+        Invitation.tournament_id.in_(ids),
+        Invitation.invited_user_id == user_id,
+        Invitation.state == "pending",
+    )
+    accessible = set()
+    for q in (organizer_q, participant_q, invitation_q):
+        accessible.update((await session.execute(q)).scalars().all())
+    return accessible
+
+
+def _activity_to_schema(
+    entries: list[activity_service.ActivityEntry], accessible_ids: set
+) -> list[ActivityEvent]:
     events: list[ActivityEvent] = []
     for e in entries:
         tournament = (
-            TournamentRef(id=e.tournament_id, name=e.tournament_name)
+            TournamentRef(
+                id=e.tournament_id,
+                name=e.tournament_name,
+                accessible=e.tournament_id in accessible_ids,
+            )
             if e.tournament_name is not None
             else None
         )
@@ -155,10 +190,13 @@ async def build_dashboard(session: AsyncSession, user: User) -> DashboardRespons
     stats = await stats_service.get_stats(session, user)
     my_tournaments = await get_my_tournaments(session, user)
     activity = await activity_service.list_recent(session, user)
+    accessible_ids = await _accessible_tournament_ids(
+        session, user.id, {e.tournament_id for e in activity if e.tournament_id is not None}
+    )
     return DashboardResponse(
         greeting=f"Hola, {nickname}",
         subtitle=SUBTITLE,
         stats=_stats_to_schema(stats),
         my_tournaments=my_tournaments,
-        activity=_activity_to_schema(activity),
+        activity=_activity_to_schema(activity, accessible_ids),
     )

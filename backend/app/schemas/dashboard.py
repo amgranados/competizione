@@ -85,10 +85,13 @@ class ActorRef(BaseModel):
 
 class TournamentRef(BaseModel):
     """Clickable reference to the linked tournament (FR-018). `id=None` =>
-    render without a link (FR-022, deleted tournament)."""
+    render without a link (FR-022, deleted tournament). `accessible=False` =>
+    the viewer is neither organizer, participant nor invitee, so the client
+    renders the name without a link (the detail endpoint would 404)."""
 
     id: uuid.UUID | None = None
     name: str
+    accessible: bool = True
 
 
 class ActivityEvent(BaseModel):

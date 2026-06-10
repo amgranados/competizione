@@ -214,3 +214,26 @@ async def test_dashboard_returns_full_response_for_user_with_history(async_clien
     assert "buddy" in actor_nicks
     assert "rando" not in actor_nicks
     assert len(body["activity"]) <= 6
+
+
+@pytest.mark.asyncio
+async def test_dashboard_activity_marks_inaccessible_tournaments(async_client, db_session):
+    """A friend's event over a tournament I'm not in (nor invited to) must come
+    with `tournament.accessible == false` so the client doesn't link to a
+    detail page that would 404; my own tournaments stay accessible."""
+    user = await register_user(async_client, "owner@example.com", "ownerUser")
+    me = await db_session.get(User, uuid.UUID(user["id"]))
+    friend = await _make_user(db_session, "buddy")
+    db_session.add(Friendship(requester_id=me.id, addressee_id=friend.id, status="accepted"))
+
+    mine = await _make_tournament(db_session, me, name="Mine", state="open")
+    theirs = await _make_tournament(db_session, friend, name="Theirs", state="open")
+    db_session.add(ActivityFeed(actor_id=me.id, event_type="TOURNAMENT_CREATE", tournament_id=mine.id))
+    db_session.add(ActivityFeed(actor_id=friend.id, event_type="TOURNAMENT_CREATE", tournament_id=theirs.id))
+    await db_session.commit()
+
+    response = await async_client.get("/api/dashboard")
+    assert response.status_code == 200, response.text
+    by_name = {e["tournament"]["name"]: e["tournament"] for e in response.json()["activity"]}
+    assert by_name["Mine"]["accessible"] is True
+    assert by_name["Theirs"]["accessible"] is False

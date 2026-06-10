@@ -68,6 +68,18 @@ describe("ActivityFeed", () => {
     expect(screen.getByText("playerB")).toBeInTheDocument();
   });
 
+  it("renders the tournament as plain text (no link) when it is not accessible", () => {
+    renderFeed([
+      ev({
+        id: "1",
+        event_type: "TOURNAMENT_CREATE",
+        tournament: { id: "t1", name: "Spring Cup", accessible: false },
+      }),
+    ]);
+    expect(screen.queryByRole("link", { name: /Spring Cup/i })).toBeNull();
+    expect(screen.getByText("Spring Cup")).toBeInTheDocument();
+  });
+
   it("renders the actor as plain text (no link) when the actor no longer exists", () => {
     renderFeed([
       ev({

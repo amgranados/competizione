@@ -45,14 +45,15 @@ function ActorLabel({ actor }) {
 function TournamentLabel({ tournament }) {
   if (!tournament) return null;
   const style = { fontWeight: 600, color: T.ac };
-  if (tournament.id) {
+  // No link when the tournament was deleted (FR-022) or the viewer can't
+  // open it (not organizer/participant/invitee — the detail would 404).
+  if (tournament.id && tournament.accessible !== false) {
     return (
       <Link to={`/tournaments/${tournament.id}`} style={{ ...style, textDecoration: "none" }}>
         {tournament.name}
       </Link>
     );
   }
-  // Resilient: deleted tournament → plain text, no link (FR-022).
   return <span style={{ ...style, color: T.tx2 }}>{tournament.name}</span>;
 }
 
