@@ -68,6 +68,29 @@ class ChampionMasteryEntry(BaseModel):
     image_url: str = ""
 
 
+class RankedQueueEntry(BaseModel):
+    queue_type: Literal["RANKED_SOLO_5x5", "RANKED_FLEX_SR"]
+    tier: str
+    rank: str
+    league_points: int
+    wins: int
+    losses: int
+
+
+class RecentMatchEntry(BaseModel):
+    match_id: str
+    played_at: datetime
+    duration_seconds: int
+    champion_id: int
+    champion_name: str
+    champion_image_url: str = ""
+    kills: int
+    deaths: int
+    assists: int
+    win: bool
+    queue: str
+
+
 class LinkedGameSummary(BaseModel):
     game: Literal["lol"] = "lol"
     game_name: str
@@ -80,6 +103,11 @@ class LinkedGameSummary(BaseModel):
     summoner_unavailable: bool = False
     masteries: list[ChampionMasteryEntry] = Field(default_factory=list)
     masteries_unavailable: bool = False
+    ranked_solo: RankedQueueEntry | None = None
+    ranked_flex: RankedQueueEntry | None = None
+    ranked_unavailable: bool = False
+    recent_matches: list[RecentMatchEntry] = Field(default_factory=list)
+    recent_matches_unavailable: bool = False
 
 
 class ProfileBasic(BaseModel):

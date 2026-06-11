@@ -21,6 +21,8 @@ from app.schemas.profile import (
     ChampionMasteryEntry,
     LinkedGameSummary,
     ProfileResponse,
+    RankedQueueEntry,
+    RecentMatchEntry,
 )
 from app.services.riot_api import ddragon
 from app.services.riot_api.client import RiotIdentityError, RiotUnavailableError
@@ -29,6 +31,7 @@ from app.services.riot_api.regions import platform_to_continent
 logger = logging.getLogger(__name__)
 
 _MASTERY_DISPLAY_LIMIT = 10
+_RECENT_MATCHES_LIMIT = 5
 # Estados que bloquean desvincular Riot / borrar cuenta (FR-014 / FR-023):
 # torneo en inscripción ("open") o en curso ("active", fijado por start_tournament).
 # OJO: "in_progress" NO existe en el enum TournamentState (DRAFT/OPEN/ACTIVE/
@@ -120,10 +123,18 @@ async def _build_lol_summary(riot_account: RiotAccount, riot_client) -> LinkedGa
     if riot_client is None:
         return summary
 
-    summoner_res, mastery_res = await asyncio.gather(
+    # league/v4 vive en el host de plataforma (EUW1...) pero match/v5 en el
+    # continental (europe/americas/asia); el continente se deriva de la
+    # plataforma persistida, igual que hace link_lol para account/v1.
+    continent = platform_to_continent(riot_account.region)
+    summoner_res, mastery_res, ranked_res, matches_res = await asyncio.gather(
         riot_client.get_summoner_profile(riot_account.puuid, riot_account.region),
         riot_client.get_champion_mastery(
             riot_account.puuid, riot_account.region, _MASTERY_DISPLAY_LIMIT
+        ),
+        riot_client.get_ranked_stats(riot_account.puuid, riot_account.region),
+        riot_client.get_recent_matches(
+            riot_account.puuid, continent, _RECENT_MATCHES_LIMIT
         ),
         return_exceptions=True,
     )
@@ -162,7 +173,60 @@ async def _build_lol_summary(riot_account: RiotAccount, riot_client) -> LinkedGa
             for m in mastery_res
         ]
 
+    if isinstance(ranked_res, (RiotIdentityError, RiotUnavailableError)):
+        logger.info(
+            "ranked stats unavailable user_id=%s region=%s: %s",
+            riot_account.user_id, riot_account.region, ranked_res,
+        )
+        summary.ranked_unavailable = True
+    elif isinstance(ranked_res, BaseException):
+        raise ranked_res
+    else:
+        summary.ranked_solo = _to_ranked_queue_entry(ranked_res.solo_duo)
+        summary.ranked_flex = _to_ranked_queue_entry(ranked_res.flex)
+
+    if isinstance(matches_res, (RiotIdentityError, RiotUnavailableError)):
+        logger.info(
+            "recent matches unavailable user_id=%s region=%s: %s",
+            riot_account.user_id, riot_account.region, matches_res,
+        )
+        summary.recent_matches_unavailable = True
+    elif isinstance(matches_res, BaseException):
+        raise matches_res
+    else:
+        assets = await ddragon.champion_assets([m.champion_id for m in matches_res])
+        summary.recent_matches = [
+            RecentMatchEntry(
+                match_id=m.match_id,
+                played_at=m.played_at,
+                duration_seconds=m.duration_seconds,
+                champion_id=m.champion_id,
+                champion_name=assets[m.champion_id].name,
+                champion_image_url=assets[m.champion_id].image_url,
+                kills=m.kills,
+                deaths=m.deaths,
+                assists=m.assists,
+                win=m.win,
+                queue=m.queue,
+            )
+            for m in matches_res
+        ]
+
     return summary
+
+
+def _to_ranked_queue_entry(entry) -> RankedQueueEntry | None:
+    """RankedEntry (dataclass del cliente Riot) → schema de respuesta; None = sin clasificar."""
+    if entry is None:
+        return None
+    return RankedQueueEntry(
+        queue_type=entry.queue_type,
+        tier=entry.tier,
+        rank=entry.rank,
+        league_points=entry.league_points,
+        wins=entry.wins,
+        losses=entry.losses,
+    )
 
 
 # --- Read APIs ------------------------------------------------------------

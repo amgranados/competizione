@@ -465,6 +465,97 @@ async def test_get_profile_marks_section_unavailable_on_partial_failure(db_sessi
 
 
 @pytest.mark.asyncio
+async def test_get_profile_includes_ranked_and_recent_matches(db_session):
+    """El linked_game compone ranked (league/v4) e historial (match/v5) cuando
+    Riot responde; ambos visibles también en el perfil público (misma vía)."""
+    from datetime import datetime, timezone
+
+    from app.services.riot_api.client import (
+        MatchSummary,
+        RankedEntry,
+        RankedStats,
+        SummonerProfile,
+    )
+
+    alice = _make_user("alice")
+    db_session.add(alice)
+    await db_session.commit()
+    db_session.add(RiotAccount(user_id=alice.id, puuid="P1", game_name="Alice", tag_line="EUW", region="EUW1"))
+    await db_session.commit()
+
+    client = MockRiotAPIClient()
+    client.configured_summoner["P1"] = SummonerProfile(
+        summoner_level=120, profile_icon_id=3, region="EUW1"
+    )
+    client.configured_mastery["P1"] = []
+    client.configured_ranked["P1"] = RankedStats(
+        solo_duo=RankedEntry("RANKED_SOLO_5x5", "GOLD", "II", 54, 30, 20),
+        flex=None,
+    )
+    client.configured_matches["P1"] = [
+        MatchSummary(
+            match_id="EUW1_123",
+            played_at=datetime(2026, 6, 1, tzinfo=timezone.utc),
+            duration_seconds=1830,
+            champion_id=7,
+            kills=8,
+            deaths=2,
+            assists=11,
+            win=True,
+            queue="CLASSIC",
+        )
+    ]
+
+    profile = await profile_service.get_profile(db_session, alice.id, riot_client=client)
+
+    lol = profile.linked_games[0]
+    assert lol.ranked_unavailable is False
+    assert lol.ranked_solo.tier == "GOLD"
+    assert lol.ranked_solo.rank == "II"
+    assert lol.ranked_solo.league_points == 54
+    assert lol.ranked_solo.wins == 30
+    assert lol.ranked_flex is None, "sin entrada flex → sin clasificar (no error)"
+
+    assert lol.recent_matches_unavailable is False
+    assert len(lol.recent_matches) == 1
+    match = lol.recent_matches[0]
+    assert match.match_id == "EUW1_123"
+    assert match.win is True
+    assert (match.kills, match.deaths, match.assists) == (8, 2, 11)
+    assert match.champion_name, "el id de campeón se resuelve a nombre (ddragon)"
+
+
+@pytest.mark.asyncio
+async def test_get_profile_marks_ranked_and_matches_unavailable_on_failure(db_session):
+    """Degradación parcial (HD-3) extendida: si league/v4 o match/v5 fallan,
+    sus secciones se marcan no disponibles sin invalidar el resto."""
+    from app.services.riot_api.client import SummonerProfile
+
+    alice = _make_user("alice")
+    db_session.add(alice)
+    await db_session.commit()
+    db_session.add(RiotAccount(user_id=alice.id, puuid="P1", game_name="Alice", tag_line="EUW", region="EUW1"))
+    await db_session.commit()
+
+    client = MockRiotAPIClient()
+    client.configured_summoner["P1"] = SummonerProfile(
+        summoner_level=50, profile_icon_id=1, region="EUW1"
+    )
+    client.configured_mastery["P1"] = []
+    client.unavailable_methods["get_ranked_stats"] = {"P1"}
+    client.unavailable_methods["get_recent_matches"] = {"P1"}
+
+    profile = await profile_service.get_profile(db_session, alice.id, riot_client=client)
+
+    lol = profile.linked_games[0]
+    assert lol.summoner_level == 50
+    assert lol.ranked_unavailable is True
+    assert lol.ranked_solo is None and lol.ranked_flex is None
+    assert lol.recent_matches_unavailable is True
+    assert lol.recent_matches == []
+
+
+@pytest.mark.asyncio
 async def test_get_profile_no_lol_section_when_not_linked(db_session):
     alice = _make_user("alice")
     db_session.add(alice)

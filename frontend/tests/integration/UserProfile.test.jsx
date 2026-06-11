@@ -94,6 +94,57 @@ describe("UserProfile page (US1)", () => {
     expect(screen.getByText(/Nv 7/)).toBeInTheDocument();
   });
 
+  it("shows ranked and match history on another user's profile", async () => {
+    seedPublicProfile("bob", {
+      ...bob,
+      linked_games: [
+        {
+          game: "lol",
+          game_name: "Faker",
+          tag_line: "KR1",
+          region: "KR",
+          summoner_level: 300,
+          masteries: [],
+          ranked_solo: {
+            queue_type: "RANKED_SOLO_5x5",
+            tier: "CHALLENGER",
+            rank: "I",
+            league_points: 1200,
+            wins: 300,
+            losses: 100,
+          },
+          ranked_flex: null,
+          recent_matches: [
+            {
+              match_id: "KR_456",
+              played_at: "2026-06-02T10:00:00Z",
+              duration_seconds: 1500,
+              champion_id: 7,
+              champion_name: "LeBlanc",
+              champion_image_url: "",
+              kills: 12,
+              deaths: 1,
+              assists: 9,
+              win: false,
+              queue: "CLASSIC",
+            },
+          ],
+        },
+      ],
+    });
+
+    renderUserProfile("bob");
+
+    const rankedSection = await screen.findByRole("region", { name: "Clasificatoria" });
+    expect(rankedSection).toHaveTextContent("CHALLENGER I");
+    expect(rankedSection).toHaveTextContent("1200 LP");
+
+    const matchesSection = screen.getByRole("region", { name: "Últimas partidas" });
+    expect(matchesSection).toHaveTextContent("LeBlanc");
+    expect(matchesSection).toHaveTextContent("Derrota");
+    expect(matchesSection).toHaveTextContent("12/1/9");
+  });
+
   it("sends friend request and updates button to Pendiente", async () => {
     seedPublicProfile("bob", bob);
     const user = userEvent.setup();

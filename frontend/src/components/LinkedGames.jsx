@@ -331,9 +331,18 @@ function LinkedLoL({ linkedGame, onUpdated, readOnly = false }) {
           {error}
         </p>
       )}
+      <RankedSection
+        solo={linkedGame.ranked_solo}
+        flex={linkedGame.ranked_flex}
+        unavailable={linkedGame.ranked_unavailable}
+      />
       <MasteryList
         masteries={linkedGame.masteries ?? []}
         unavailable={linkedGame.masteries_unavailable}
+      />
+      <MatchHistory
+        matches={linkedGame.recent_matches ?? []}
+        unavailable={linkedGame.recent_matches_unavailable}
       />
     </Card>
   );
@@ -369,6 +378,201 @@ function SummonerIcon({ url, level, unavailable }) {
     <div style={baseStyle}>
       <Icon name="trophy" size={22} />
     </div>
+  );
+}
+
+const sectionLabelStyle = {
+  fontFamily: T.fM,
+  fontSize: 10,
+  color: T.tx3,
+  letterSpacing: 1,
+  textTransform: "uppercase",
+  marginBottom: 10,
+};
+
+function RankedSection({ solo, flex, unavailable }) {
+  return (
+    <section aria-label="Clasificatoria" style={{ marginTop: 18 }}>
+      <div style={sectionLabelStyle}>Clasificatoria</div>
+      {unavailable ? (
+        <p style={{ fontSize: 12, color: T.tx3 }}>No disponible temporalmente.</p>
+      ) : (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: 8,
+          }}
+        >
+          <RankedQueueCard label="Solo/Dúo" entry={solo} />
+          <RankedQueueCard label="Flexible" entry={flex} />
+        </div>
+      )}
+    </section>
+  );
+}
+
+function RankedQueueCard({ label, entry }) {
+  const total = entry ? entry.wins + entry.losses : 0;
+  const winrate = total > 0 ? Math.round((entry.wins / total) * 100) : null;
+  return (
+    <div
+      style={{
+        background: T.s3,
+        border: `1px solid ${T.bd}`,
+        borderRadius: T.r,
+        padding: "10px 12px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 10,
+      }}
+    >
+      <div style={{ minWidth: 0 }}>
+        <div
+          style={{
+            fontFamily: T.fM,
+            fontSize: 10,
+            color: T.tx3,
+            letterSpacing: 0.5,
+            textTransform: "uppercase",
+            marginBottom: 4,
+          }}
+        >
+          {label}
+        </div>
+        {entry ? (
+          <div style={{ fontSize: 13, fontWeight: 600 }}>
+            {entry.tier} {entry.rank}
+            <span style={{ color: T.tx2, fontWeight: 400, marginLeft: 6 }}>
+              {entry.league_points} LP
+            </span>
+          </div>
+        ) : (
+          <div style={{ fontSize: 13, color: T.tx3 }}>Sin clasificar</div>
+        )}
+      </div>
+      {entry && (
+        <div style={{ textAlign: "right", flexShrink: 0 }}>
+          <div style={{ fontFamily: T.fM, fontSize: 11, color: T.tx2 }}>
+            <span style={{ color: "#4ade80" }}>{entry.wins}V</span>
+            <span style={{ color: T.tx3 }}> / </span>
+            <span style={{ color: T.ac }}>{entry.losses}D</span>
+          </div>
+          {winrate != null && (
+            <div style={{ fontFamily: T.fM, fontSize: 10, color: T.tx3, marginTop: 2 }}>
+              {winrate}% WR
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function formatDuration(seconds) {
+  const minutes = Math.floor(seconds / 60);
+  const rest = String(seconds % 60).padStart(2, "0");
+  return `${minutes}:${rest}`;
+}
+
+function MatchHistory({ matches, unavailable }) {
+  let body;
+  if (unavailable) {
+    body = <p style={{ fontSize: 12, color: T.tx3 }}>No disponible temporalmente.</p>;
+  } else if (!matches.length) {
+    body = (
+      <p style={{ fontSize: 12, color: T.tx3 }}>
+        Sin partidas recientes para esta cuenta.
+      </p>
+    );
+  } else {
+    body = (
+      <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 8 }}>
+        {matches.map((m) => (
+          <li
+            key={m.match_id}
+            style={{
+              background: T.s3,
+              border: `1px solid ${T.bd}`,
+              borderLeft: `3px solid ${m.win ? "#4ade80" : T.ac}`,
+              borderRadius: T.r,
+              padding: "10px 12px",
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+            }}
+          >
+            {m.champion_image_url ? (
+              <img
+                src={m.champion_image_url}
+                alt={m.champion_name}
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: T.r2,
+                  objectFit: "cover",
+                  flexShrink: 0,
+                  border: `1px solid ${T.bd}`,
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: T.r2,
+                  background: T.acD,
+                  flexShrink: 0,
+                }}
+              />
+            )}
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div
+                style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+                title={m.champion_name}
+              >
+                {m.champion_name}
+              </div>
+              <div
+                style={{
+                  fontFamily: T.fM,
+                  fontSize: 10,
+                  color: T.tx3,
+                  letterSpacing: 0.5,
+                }}
+              >
+                {m.queue} · {formatDuration(m.duration_seconds)} ·{" "}
+                {new Date(m.played_at).toLocaleDateString()}
+              </div>
+            </div>
+            <div
+              style={{
+                fontFamily: T.fM,
+                fontSize: 12,
+                color: T.tx2,
+                flexShrink: 0,
+              }}
+            >
+              {m.kills}/<span style={{ color: T.ac }}>{m.deaths}</span>/{m.assists}
+            </div>
+            <Tag variant={m.win ? "green" : "ac"}>{m.win ? "Victoria" : "Derrota"}</Tag>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+  return (
+    <section aria-label="Últimas partidas" style={{ marginTop: 18 }}>
+      <div style={sectionLabelStyle}>Últimas partidas</div>
+      {body}
+    </section>
   );
 }
 

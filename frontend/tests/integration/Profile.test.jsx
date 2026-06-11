@@ -62,6 +62,8 @@ describe("Profile page — US1 edits", () => {
     renderProfile();
 
     await screen.findByRole("heading", { level: 2, name: "alice" });
+    // Los formularios de edición viven en el modal "Editar perfil".
+    await user.click(screen.getByRole("button", { name: /editar perfil/i }));
 
     await user.type(screen.getByLabelText("Contraseña actual"), "old-password-1");
     await user.type(screen.getByLabelText("Contraseña nueva"), "NewPassword99");
@@ -75,6 +77,8 @@ describe("Profile page — US1 edits", () => {
     renderProfile();
 
     await screen.findByRole("heading", { level: 2, name: "alice" });
+    // Los formularios de edición viven en el modal "Editar perfil".
+    await user.click(screen.getByRole("button", { name: /editar perfil/i }));
 
     await user.type(screen.getByLabelText("URL del avatar"), "https://cdn.example/me.png");
     await user.click(screen.getByRole("button", { name: "Guardar avatar" }));
@@ -131,13 +135,22 @@ describe("Profile page — US2 LoL link/unlink", () => {
   it("shows unavailable banner per section when partial Riot failure", async () => {
     seedProfile({
       ...baseProfile,
-      linked_games: [{ game: "lol", region: "EUW1", linked_at: new Date().toISOString() }],
-      lol_stats: {
-        summoner: { unavailable: false, data: { summoner_level: 10, region: "EUW1" } },
-        ranked: { unavailable: false, solo_duo: null, flex: null },
-        mastery: { unavailable: false, data: [] },
-        recent_matches: { unavailable: true, data: null },
-      },
+      linked_games: [
+        {
+          game: "lol",
+          game_name: "Alice",
+          tag_line: "EUW",
+          region: "EUW1",
+          linked_at: new Date().toISOString(),
+          summoner_level: 10,
+          masteries: [],
+          ranked_solo: null,
+          ranked_flex: null,
+          ranked_unavailable: false,
+          recent_matches: [],
+          recent_matches_unavailable: true,
+        },
+      ],
     });
     renderProfile();
 
@@ -146,10 +159,64 @@ describe("Profile page — US2 LoL link/unlink", () => {
     // Unavailable text appears in the recent matches section
     const matchesSection = screen.getByRole("region", { name: "Últimas partidas" });
     expect(matchesSection).toHaveTextContent("No disponible temporalmente");
-    // Other sections rendered normally — level number visible
-    const summonerSection = screen.getByRole("region", { name: "Invocador" });
-    expect(summonerSection).toHaveTextContent("10");
-    expect(summonerSection).toHaveTextContent(/EUW1/);
+    // Other sections rendered normally — ranked shows unranked, level visible
+    const rankedSection = screen.getByRole("region", { name: "Clasificatoria" });
+    expect(rankedSection).toHaveTextContent("Sin clasificar");
+    expect(screen.getByText("Nivel 10")).toBeInTheDocument();
+  });
+
+  it("shows ranked stats and recent match history when Riot data available", async () => {
+    seedProfile({
+      ...baseProfile,
+      linked_games: [
+        {
+          game: "lol",
+          game_name: "Alice",
+          tag_line: "EUW",
+          region: "EUW1",
+          linked_at: new Date().toISOString(),
+          summoner_level: 120,
+          masteries: [],
+          ranked_solo: {
+            queue_type: "RANKED_SOLO_5x5",
+            tier: "GOLD",
+            rank: "II",
+            league_points: 54,
+            wins: 30,
+            losses: 20,
+          },
+          ranked_flex: null,
+          recent_matches: [
+            {
+              match_id: "EUW1_123",
+              played_at: "2026-06-01T20:00:00Z",
+              duration_seconds: 1830,
+              champion_id: 7,
+              champion_name: "LeBlanc",
+              champion_image_url: "",
+              kills: 8,
+              deaths: 2,
+              assists: 11,
+              win: true,
+              queue: "CLASSIC",
+            },
+          ],
+        },
+      ],
+    });
+    renderProfile();
+
+    const rankedSection = await screen.findByRole("region", { name: "Clasificatoria" });
+    expect(rankedSection).toHaveTextContent("GOLD II");
+    expect(rankedSection).toHaveTextContent("54 LP");
+    expect(rankedSection).toHaveTextContent("60% WR");
+    // Flex queue without entry shows "Sin clasificar" instead of an error
+    expect(rankedSection).toHaveTextContent("Sin clasificar");
+
+    const matchesSection = screen.getByRole("region", { name: "Últimas partidas" });
+    expect(matchesSection).toHaveTextContent("LeBlanc");
+    expect(matchesSection).toHaveTextContent("Victoria");
+    expect(matchesSection).toHaveTextContent("8/2/11");
   });
 
   it("unlinks LoL when no active tournament", async () => {
