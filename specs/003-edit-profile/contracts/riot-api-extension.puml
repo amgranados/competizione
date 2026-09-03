@@ -1,0 +1,76 @@
+@startuml riot-api-extension
+title RiotAPIClient — Protocol extendido en 003-edit-profile
+
+skinparam classAttributeIconSize 0
+hide empty members
+
+interface "RiotAPIClient" as RAC <<Protocol>> {
+  +validate_riot_id(game_name, tag_line): bool                           ' heredado 002
+  +get_match_by_tournament_code(code): MatchResult | None                ' heredado 002 (DEFER)
+  ..métodos NUEVOS en 003..
+  +resolve_puuid(game_name, tag_line, region): str                       ' usado solo dentro de profile_service.link_lol
+  +get_summoner_profile(puuid): SummonerProfile
+  +get_ranked_stats(puuid): RankedStats
+  +get_champion_mastery(puuid, limit=5): list<ChampionMastery>
+  +get_recent_matches(puuid, limit=5): list<MatchSummary>
+}
+
+class "MockRiotAPIClient" as MOCK {
+  -configured_riot_ids: set<(game_name, tag_line)>
+  -configured_match_results: dict<code, MatchResult>
+  -configured_summoner: dict<puuid, SummonerProfile>
+  -configured_ranked: dict<puuid, RankedStats>
+  -configured_mastery: dict<puuid, list<ChampionMastery>>
+  -configured_matches: dict<puuid, list<MatchSummary>>
+  +(implementa todos los métodos del Protocol)
+}
+
+class "HttpRiotAPIClient" as HTTP {
+  -api_key: str
+  -client: httpx.AsyncClient
+  -timeout_per_call: float = 2.0
+  +(implementa todos los métodos del Protocol)
+  ..acceso a Riot..
+  -_regional_host(region): str
+  -_platform_host(region): str
+}
+
+class "get_riot_api_client(settings)" as FACTORY <<factory>> {
+  RIOT_API_KEY ausente -> MockRiotAPIClient (con log INFO)
+  RIOT_API_KEY presente -> HttpRiotAPIClient (cableado en 003)
+}
+
+RAC <|.. MOCK
+RAC <|.. HTTP
+FACTORY ..> RAC : returns
+
+note right of RAC
+  Constitución IV: el Protocol es la única
+  abstracción permitida en torno a Riot.
+  No se introduce un wrapper extra.
+end note
+
+note bottom of MOCK
+  Constitución II (TDD):
+  todos los tests del perfil
+  inyectan MOCK con datos sembrados.
+end note
+
+note bottom of HTTP
+  Endpoints consumidos:
+  - /riot/account/v1/accounts/by-riot-id/{name}/{tag}
+  - /lol/summoner/v4/summoners/by-puuid/{puuid}
+  - /lol/league/v4/entries/by-puuid/{puuid}
+  - /lol/champion-mastery/v4/champion-masteries/by-puuid/{puuid}/top
+  - /lol/match/v5/matches/by-puuid/{puuid}/ids
+  - /lol/match/v5/matches/{matchId}
+end note
+
+note as SCOPE
+  En 003 SOLO se usa get_match_by_tournament_code
+  como herencia (sigue DEFER en 002).
+  La verificación de partidas en torneos NO se cablea
+  desde un endpoint en esta iteración.
+end note
+
+@enduml

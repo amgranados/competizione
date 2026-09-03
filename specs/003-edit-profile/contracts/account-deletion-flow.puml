@@ -1,0 +1,67 @@
+@startuml account-deletion-flow
+title Eliminación de cuenta — flujo completo (HD-2 + HD-4)
+
+actor Usuario
+participant "Frontend\n(DeleteAccountModal.jsx)" as FE
+participant "API\n(routes/profile.py)" as API
+participant "profile_service" as SVC
+database "DB" as DB
+participant "TokenBlacklist" as TBL
+
+== Apertura del modal ==
+Usuario -> FE : Pulsa "Eliminar cuenta"
+FE -> FE : muestra modal con input\n("escribe tu nickname para confirmar")
+
+== Confirmación textual (HD-2) ==
+Usuario -> FE : escribe nickname
+FE -> FE : enable button = (input == nickname actual)
+Usuario -> FE : pulsa "Confirmar"
+FE -> API : DELETE /api/profile/me\n{ confirmation: "<nickname>" }
+
+== Validaciones de servidor ==
+API -> SVC : delete_account(user_id, confirmation)
+SVC -> DB : SELECT users WHERE id = user_id
+SVC -> SVC : ¿confirmation == users.nickname (case-sensitive)?
+alt confirmación incorrecta
+    SVC --> API : raise BadRequest
+    API --> FE : 400 { detail: "Confirmación incorrecta" }
+    FE -> Usuario : muestra error
+else confirmación correcta
+    SVC -> DB : SELECT EXISTS(\n  participants p JOIN tournaments t\n  WHERE p.user_id = user_id AND p.removed = false\n  AND t.state IN ('open','in_progress')\n)
+    alt participa en torneo activo
+        SVC --> API : raise Conflict
+        API --> FE : 409 { detail: "Tienes torneos activos..." }
+        FE -> Usuario : muestra error
+    else sin torneos activos
+        == Anonimización (HD-4) ==
+        SVC -> DB : UPDATE users SET\n  email = NULL,\n  nickname = 'deleted-XXXXXXXX',\n  password_hash = '!',\n  failed_login_attempts = 0,\n  locked_until = NULL,\n  avatar_url = NULL,\n  deleted_at = now()\nWHERE id = user_id
+        SVC -> DB : DELETE FROM riot_accounts WHERE user_id = user_id
+        SVC -> TBL : INSERT blacklist (TODOS los refresh tokens del usuario)
+        SVC -> SVC : (logger.info "user_id deleted, riot_account removed")
+        SVC --> API : OK
+        API --> FE : 204 No Content\nSet-Cookie: access_token=; Max-Age=0\nSet-Cookie: refresh_token=; Max-Age=0
+        FE -> FE : redirige a /login
+        FE -> Usuario : muestra "Cuenta eliminada"
+    end
+end
+
+note right of SVC
+  Constitución II (TDD): cada rama
+  (confirmación incorrecta, torneo activo,
+  éxito) tiene su test rojo previo.
+end note
+
+note right of DB
+  La fila de users NO se borra físicamente.
+  Las FK desde participants/tournaments/matches
+  siguen apuntando al user_id, manteniendo
+  la integridad histórica de torneos cerrados.
+end note
+
+note right of TBL
+  HD-5/HD-4: el cambio de contraseña reusa el
+  mismo mecanismo para invalidar OTRAS sesiones;
+  aquí se invalidan TODAS las sesiones del usuario.
+end note
+
+@enduml

@@ -1,0 +1,90 @@
+:root {
+  --ac: #d0184f;
+  --ac-dim: rgba(208, 24, 79, 0.15);
+  --ac-l: #f02060;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  background: #0b0b0f;
+}
+
+body {
+  font-family: "DM Sans", system-ui, sans-serif;
+  color: #eaeaf0;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+input,
+button,
+select,
+textarea {
+  font-family: inherit;
+}
+
+/* Dark theme for native widgets: the <select> popup list and the
+   datetime-local calendar indicator follow the page's color scheme
+   instead of defaulting to the light OS rendering. */
+input,
+select,
+textarea {
+  color-scheme: dark;
+}
+
+select option {
+  background-color: #1e1e27;
+  color: #eaeaf0;
+}
+
+a {
+  color: var(--ac);
+  text-decoration: none;
+}
+a:hover {
+  color: var(--ac-l);
+}
+
+#root {
+  height: 100%;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.route-fade {
+  animation: fadeIn 0.22s cubic-bezier(0.2, 0.7, 0.3, 1);
+}

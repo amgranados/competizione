@@ -1,0 +1,174 @@
+"""Riot API client Protocol and factory.
+
+Iteration 003 (edit-profile) extends the Protocol with profile-related methods
+and wires HttpRiotAPIClient as the production implementation when RIOT_API_KEY
+is set. Iteration 002's match-verification methods are kept untouched.
+"""
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Protocol, runtime_checkable
+
+logger = logging.getLogger(__name__)
+
+
+# ----- 002 dataclasses (kept verbatim) ------------------------------------
+
+@dataclass(frozen=True)
+class ParticipantInfo:
+    """Minimal info about one player in a Riot match."""
+
+    puuid: str
+    team_id: int
+
+
+@dataclass(frozen=True)
+class MatchResult:
+    """Data returned by Riot for a tournament-code match."""
+
+    participants: list[ParticipantInfo]
+    duration_seconds: int
+    game_mode: str
+    start_timestamp: datetime
+
+
+# ----- 003 dataclasses (profile / LoL stats) ------------------------------
+
+@dataclass(frozen=True)
+class SummonerProfile:
+    summoner_level: int
+    region: str
+    profile_icon_id: int = 0
+
+
+@dataclass(frozen=True)
+class RankedEntry:
+    queue_type: str  # "RANKED_SOLO_5x5" | "RANKED_FLEX_SR"
+    tier: str
+    rank: str
+    league_points: int
+    wins: int
+    losses: int
+
+
+@dataclass(frozen=True)
+class RankedStats:
+    solo_duo: RankedEntry | None = None
+    flex: RankedEntry | None = None
+
+
+@dataclass(frozen=True)
+class ChampionMastery:
+    champion_id: int
+    champion_level: int
+    champion_points: int
+
+
+@dataclass(frozen=True)
+class MatchSummary:
+    match_id: str
+    played_at: datetime
+    duration_seconds: int
+    champion_id: int
+    kills: int
+    deaths: int
+    assists: int
+    win: bool
+    queue: str
+
+
+# ----- 00X dataclasses (Tournament-Stub-V5) --------------------------------
+
+@dataclass(frozen=True)
+class LobbyEvent:
+    """One lobby event of a tournament-code game (player joined/left, game
+    started…), as returned by GET /lol/tournament-stub/v5/lobby-events."""
+
+    timestamp: str
+    event_type: str
+    puuid: str | None = None
+
+
+# ----- 003 exceptions -----------------------------------------------------
+
+class RiotIdentityError(Exception):
+    """Riot rejected the identity (4xx). Used for resolve_puuid + 4xx wrappers."""
+
+
+class RiotUnavailableError(Exception):
+    """Riot returned 5xx, timeout or connection error."""
+
+
+# ----- Protocol -----------------------------------------------------------
+
+@runtime_checkable
+class RiotAPIClient(Protocol):
+    # 002 (kept; verification path remains DEFER for tournaments)
+    def validate_riot_id(self, game_name: str, tag_line: str) -> bool: ...
+
+    def get_match_by_tournament_code(self, tournament_code: str) -> MatchResult | None: ...
+
+    # 003 — profile / LoL stats
+    async def resolve_puuid(self, game_name: str, tag_line: str, region: str) -> str: ...
+
+    async def get_summoner_profile(self, puuid: str, region: str) -> SummonerProfile: ...
+
+    async def get_ranked_stats(self, puuid: str, region: str) -> RankedStats: ...
+
+    async def get_champion_mastery(
+        self, puuid: str, region: str, limit: int = 5
+    ) -> list[ChampionMastery]: ...
+
+    async def get_recent_matches(
+        self, puuid: str, region: str, limit: int = 5
+    ) -> list[MatchSummary]: ...
+
+    # Tournament-Stub-V5 — provisión de torneos y códigos de partida.
+    # El flujo real de Riot es: provider (1 por app+región, con callback URL)
+    # → tournament (contenedor lógico) → codes (uno por partida, se introduce
+    # en el cliente de LoL para crear la lobby). El stub es el sandbox de ese
+    # flujo: misma superficie, sin efectos en el juego real.
+
+    async def create_tournament_provider(self, region: str, callback_url: str) -> int: ...
+
+    async def create_tournament(self, provider_id: int, name: str) -> int: ...
+
+    async def create_tournament_codes(
+        self,
+        tournament_id: int,
+        count: int,
+        *,
+        team_size: int = 1,
+        allowed_puuids: list[str] | None = None,
+        metadata: str | None = None,
+    ) -> list[str]: ...
+
+    async def get_lobby_events(self, tournament_code: str) -> list[LobbyEvent]: ...
+
+
+def get_riot_api_client(settings) -> RiotAPIClient:
+    """Return a Riot API client based on RIOT_API_KEY presence.
+
+    - RIOT_API_KEY unset, prod  → fail-fast (L-08): NO devolver Mock en
+      producción, pues serviría estadísticas falsas de forma silenciosa.
+    - RIOT_API_KEY unset, dev/test → MockRiotAPIClient con log INFO explícito.
+    - RIOT_API_KEY set          → HttpRiotAPIClient (003 wiring).
+    """
+    from app.services.riot_api.mock_client import MockRiotAPIClient
+
+    if getattr(settings, "RIOT_API_KEY", None) is None:
+        environment = str(getattr(settings, "ENVIRONMENT", "development")).strip().lower()
+        if environment in ("prod", "production"):
+            logger.error("RIOT_API_KEY no está configurada en producción; abortando.")
+            raise RuntimeError(
+                "RIOT_API_KEY es obligatoria en producción "
+                "(sin ella se servirían estadísticas falsas del Mock)."
+            )
+        logger.info("Using MockRiotAPIClient: RIOT_API_KEY not set")
+        return MockRiotAPIClient()
+
+    from app.services.riot_api.http_client import HttpRiotAPIClient
+
+    return HttpRiotAPIClient(api_key=settings.RIOT_API_KEY)

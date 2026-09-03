@@ -1,0 +1,18 @@
+# Hooks locales de pre-commit. Instalar con:
+#   pip install pre-commit && pre-commit install
+# Ejecutar sobre todo el repo:
+#   pre-commit run --all-files
+repos:
+  # Escaneo de secretos (H-01): impide commitear claves (p. ej. RGAPI-...).
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+
+  # Linter de Python para el backend.
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.16
+    hooks:
+      - id: ruff
+        args: [--fix]
+        files: ^backend/

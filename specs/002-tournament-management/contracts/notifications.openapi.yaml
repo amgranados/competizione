@@ -1,0 +1,131 @@
+openapi: 3.1.0
+info:
+  title: Competizione — Notifications API
+  version: 0.2.0
+  description: |
+    Contrato REST para notificaciones in-app (feature 002). Consumido por el frontend
+    mediante polling (`setInterval` cada 10 s). Autenticación heredada de 001.
+
+servers:
+  - url: /
+
+security:
+  - cookieAuth: []
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: access_token
+
+  parameters:
+    NotificationId:
+      in: path
+      name: notificationId
+      required: true
+      schema:
+        $ref: '#/components/schemas/UUID'
+
+  responses:
+    Unauthorized:
+      description: No autenticado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: No existe o no pertenece al usuario
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    UUID:
+      type: string
+      format: uuid
+    ISODateTime:
+      type: string
+      format: date-time
+    Error:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          type: string
+        code:
+          type: string
+    NotificationType:
+      type: string
+      enum:
+        - invitation_received
+        - invitation_cancelled
+        - invitation_accepted
+        - invitation_rejected
+        - tournament_started
+        - tournament_cancelled
+        - match_generated
+        - match_resolved
+        - tournament_finished
+    Notification:
+      type: object
+      required: [id, user_id, type, created_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        user_id:
+          $ref: '#/components/schemas/UUID'
+        type:
+          $ref: '#/components/schemas/NotificationType'
+        tournament_id:
+          $ref: '#/components/schemas/UUID'
+          nullable: true
+        match_id:
+          $ref: '#/components/schemas/UUID'
+          nullable: true
+        invitation_id:
+          $ref: '#/components/schemas/UUID'
+          nullable: true
+        created_at:
+          $ref: '#/components/schemas/ISODateTime'
+        read_at:
+          $ref: '#/components/schemas/ISODateTime'
+          nullable: true
+
+paths:
+  /notifications:
+    get:
+      summary: Listado de notificaciones del usuario (polling cada 10 s)
+      parameters:
+        - in: query
+          name: unread
+          schema:
+            type: boolean
+          description: Si true, devuelve sólo las no leídas.
+      responses:
+        '200':
+          description: Lista ordenada por created_at DESC
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Notification'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /notifications/{notificationId}/read:
+    parameters:
+      - $ref: '#/components/parameters/NotificationId'
+    patch:
+      summary: Marcar notificación como leída
+      responses:
+        '200':
+          description: Notificación con read_at fijado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+        '404':
+          $ref: '#/components/responses/NotFound'

@@ -1,0 +1,30 @@
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-ra --cov=app --cov-report=term-missing"
+filterwarnings = [
+    "ignore::DeprecationWarning:passlib.*",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["app"]
+omit = ["app/db/migrations/*"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = ["app/db/migrations/versions"]
+
+[tool.ruff.lint]
+# Reglas: errores pyflakes (F), pycodestyle (E/W) e imports ordenados (I).
+select = ["E", "F", "W", "I"]
+# E501 (longitud de línea) no se aplica: el repo no usa formateador automático
+# y muchas líneas legacy superan 100. Se prioriza F (bugs/imports muertos).
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# En los tests es idiomático importar tras definir fixtures/marcadores (E402)
+# y enlazar el resultado de helpers con efectos colaterales aunque no se use la
+# variable (F841, p. ej. `organizer = await register_user(...)`).
+"tests/**" = ["E402", "F841"]

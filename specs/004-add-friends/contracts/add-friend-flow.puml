@@ -1,0 +1,77 @@
+@startuml add-friend-flow
+title Flujo principal: A descubre a B, le envía solicitud, B acepta
+
+actor "Usuario A" as A
+participant "Frontend\n(SPA React)" as FE
+participant "Backend\n(FastAPI)" as BE
+database "PostgreSQL" as DB
+actor "Usuario B" as B
+
+== 1. Búsqueda ==
+
+A -> FE : escribe "bob" en\nUserSearchBar
+FE -> BE : GET /api/friends/search?q=bob\n(cookie de sesión)
+BE -> DB : SELECT id, nickname, avatar_url\nFROM users\nWHERE nickname ILIKE '%bob%'\n  AND id != A\n  AND deleted_at IS NULL\nLIMIT 20
+BE -> DB : LEFT JOIN friendships\n para calcular relationship_status
+DB --> BE : filas + status por usuario
+BE --> FE : 200 [UserSearchResult]\ncon relationship_status=SIN_RELACION
+FE --> A : muestra dropdown con resultados
+
+== 2. Visualizar perfil ajeno ==
+
+A -> FE : clic sobre B
+FE -> BE : GET /api/profile/bob
+BE -> DB : SELECT user, riot_account, friendship\n por nickname
+BE -> BE : compone PublicProfileResponse\n(sin email, sin controles edición)
+BE --> FE : 200 PublicProfileResponse\n+ relationship_status=SIN_RELACION
+FE --> A : muestra perfil con\nbotón "Añadir amigo"
+
+== 3. Enviar solicitud ==
+
+A -> FE : clic en "Añadir amigo"
+FE -> BE : POST /api/friends/request/{B}
+BE -> DB : BEGIN
+BE -> DB : SELECT * FROM friendships\nWHERE (req=A AND addr=B)\n   OR (req=B AND addr=A)\nFOR UPDATE
+DB --> BE : 0 filas
+BE -> DB : INSERT INTO friendships\n(requester=A, addressee=B,\n status='pending')
+DB --> BE : fila creada
+BE -> DB : COMMIT
+BE --> FE : 201 FriendRequestResponse
+FE --> A : botón pasa a "Pendiente"\n(disabled)
+
+== 4. B acepta (sin UI esta fase: vía API) ==
+
+B -> BE : GET /api/friends/requests
+BE -> DB : SELECT * FROM friendships\nWHERE addressee=B AND status='pending'
+DB --> BE : [solicitud de A]
+BE --> B : 200 [FriendRequestResponse]
+B -> BE : POST /api/friends/request/{request_id}/accept
+BE -> DB : UPDATE friendships\nSET status='accepted'\nWHERE id=:req AND status='pending'\n  AND addressee_id=B\nRETURNING *
+DB --> BE : fila actualizada
+BE --> B : 200 { action: "accepted",\n  relationship_status: AMIGO }
+
+== 5. A ve el cambio ==
+
+A -> FE : refresh /users/bob
+FE -> BE : GET /api/profile/bob
+BE -> DB : (cómputo de status)
+DB --> BE : relationship_status=AMIGO
+BE --> FE : 200 PublicProfileResponse\n+ relationship_status=AMIGO
+FE --> A : botón pasa a "Eliminar amigo"
+
+== 6. (Opcional) Eliminar amistad — bidireccional ==
+
+A -> FE : clic en "Eliminar amigo"
+FE -> BE : DELETE /api/friends/{B}
+BE -> DB : DELETE FROM friendships\nWHERE status='accepted'\n  AND ((req=A AND addr=B)\n   OR (req=B AND addr=A))
+DB --> BE : 1 fila borrada
+BE --> FE : 204
+FE --> A : botón vuelve a "Añadir amigo"
+note over B, FE
+  B también verá "Añadir amigo"
+  la próxima vez que cargue el
+  perfil de A: el cómputo de
+  estado lo dicta el backend.
+end note
+
+@enduml

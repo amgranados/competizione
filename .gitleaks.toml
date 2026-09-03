@@ -1,0 +1,24 @@
+# Configuración de gitleaks.
+# Extiende el conjunto de reglas por defecto (detección de claves, tokens, etc.).
+[extend]
+useDefault = true
+
+# --- Allowlist ---
+# Las siguientes claves de Riot (RGAPI-...) se filtraron en el historial ANTES
+# de esta remediación (H-01). Son claves de desarrollo (caducan en 24h) y se han
+# tratado como COMPROMETIDAS y rotado en el portal de Riot. El árbol de trabajo
+# actual ya NO las contiene (se sustituyeron por placeholders). Se incluyen aquí
+# para que el escaneo de historial no falle por estos secretos ya gestionados,
+# SIN dejar de detectar cualquier secreto nuevo.
+#
+# Si en el futuro se purga el historial (git filter-repo), esta allowlist puede
+# eliminarse.
+[[allowlists]]
+description = "Claves RGAPI históricas ya rotadas (ver specs/006-audit-remediation/plan.md, H-01)"
+regexes = [
+  '''RGAPI-15d35bed-41aa-4b84-8755-cbef3ea6ff74''',
+  '''RGAPI-37090e86-adc0-4dab-8e84-340c485740ed''',
+  '''RGAPI-e3e5805f-6df3-475b-a4de-c75b41583142''',
+  # Placeholder usado en .env.example / docs (no es un secreto real).
+  '''RGAPI-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx''',
+]

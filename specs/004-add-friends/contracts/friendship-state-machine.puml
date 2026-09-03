@@ -1,0 +1,39 @@
+@startuml friendship-state-machine
+title Estados de la relación entre dos usuarios A y B (004-add-friends)
+
+[*] --> SinRelacion : ningún registro en\nfriendships entre A y B
+
+state SinRelacion as "SIN_RELACION\n(sin fila)"
+state PendienteAB as "PENDIENTE\nA -> B\n(fila status=pending,\nrequester=A, addressee=B)"
+state PendienteBA as "PENDIENTE\nB -> A\n(fila status=pending,\nrequester=B, addressee=A)"
+state Amigos as "AMIGO\n(fila status=accepted)"
+
+SinRelacion --> PendienteAB : POST /friends/request/{B}\npor A\n(crea fila A->B pending)
+SinRelacion --> PendienteBA : POST /friends/request/{A}\npor B\n(crea fila B->A pending)
+
+PendienteAB --> Amigos : POST /friends/request/{id}/accept\npor B\n(UPDATE status=accepted)
+PendienteAB --> SinRelacion : POST /friends/request/{id}/reject\npor B\n(DELETE fila)
+PendienteAB --> PendienteAB : POST /friends/request/{B}\npor A\n=> 409 (misma dirección)
+PendienteAB --> PendienteAB : POST /friends/request/{A}\npor B\n=> 409 (cruzada)
+
+PendienteBA --> Amigos : POST /friends/request/{id}/accept\npor A
+PendienteBA --> SinRelacion : POST /friends/request/{id}/reject\npor A
+
+Amigos --> SinRelacion : DELETE /friends/{B} por A\nó DELETE /friends/{A} por B\n(elimina la única fila accepted)
+Amigos --> Amigos : POST /friends/request/{B}\npor A => 409 (ya amigos)
+
+note right of Amigos
+  La amistad es bidireccional:
+  basta una sola fila para
+  representarla. Ambos lados
+  ven "Eliminar amigo".
+end note
+
+note bottom of SinRelacion
+  En este estado, ambos lados
+  ven "Añadir amigo". El estado
+  se calcula en backend en cada
+  GET (HD-1).
+end note
+
+@enduml

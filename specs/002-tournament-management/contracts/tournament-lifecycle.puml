@@ -1,0 +1,41 @@
+@startuml tournament-lifecycle
+' Estados del Tournament y de la Invitation.
+' Spec: specs/002-tournament-management/spec.md FR-007, FR-016..FR-020, FR-055..FR-057, FR-012..FR-014.
+
+skinparam state {
+  BackgroundColor #FAFAFA
+  BorderColor #444
+  ArrowColor #555
+}
+
+title Tournament & Invitation lifecycle (feature 002, iteración actual)
+
+state "Tournament" as Tournament {
+  [*] --> draft : POST /tournaments\n(FR-005..FR-007)
+  draft --> open : POST /tournaments/{id}/open\n(FR-017)
+  draft --> cancelled : POST /tournaments/{id}/cancel\n(FR-055)
+  open --> active : POST /tournaments/{id}/start\n(>=2 participants; FR-018, FR-019)
+  open --> cancelled : POST /tournaments/{id}/cancel
+  active --> finished : ultimo resultado confirmado\n(auto; FR-020, FR-050)
+  active --> cancelled : POST /tournaments/{id}/cancel
+  finished --> [*] : terminal
+  cancelled --> [*] : terminal (FR-056)
+}
+
+state "Invitation" as Invitation {
+  [*] --> pending : POST /tournaments/{id}/invitations\n(FR-009, expires_at = created_at + 48h)
+  pending --> accepted : POST /invitations/{iid}/accept\n(crea Participant; FR-012)
+  pending --> rejected : POST /invitations/{iid}/reject\n(FR-012)
+  pending --> cancelled : POST /tournaments/{id}/invitations/{iid}/cancel\n(organizador; FR-014)
+  pending --> expired : check-on-read cuando now >= expires_at\n(FR-013)
+  accepted --> [*]
+  rejected --> [*]
+  cancelled --> [*]
+  expired --> [*]
+}
+
+note right of Tournament : Bloqueos al entrar en active (FR-019):\n- formato inmutable\n- participantes bloqueados\n- configuracion bloqueada
+
+note right of Invitation : accept/reject/cancel sólo si\nstate = pending AND now < expires_at.
+
+@enduml

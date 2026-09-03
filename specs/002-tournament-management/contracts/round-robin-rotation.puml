@@ -1,0 +1,58 @@
+@startuml round-robin-rotation
+' Algoritmo de rotacion circular para round-robin (circle method).
+' Fuente: Wikipedia "Round-robin tournament § Scheduling algorithm".
+' Spec: FR-023, FR-024 (SC-006).
+
+title Round-robin schedule generation (circle method)
+
+start
+
+:entrada: lista de N participantes
+(orden de inscripcion ASC);
+
+if (N es impar?) then (si)
+  :append "jugador fantasma" (None);
+  :N := N + 1;
+endif
+
+:fixed := players[0]
+rotating := players[1..N-1]
+total_rounds := N - 1
+rounds := [];
+
+repeat :for r in 0..total_rounds-1;
+  :round_players := [fixed] + rotating;
+  :matches := [];
+
+  repeat :for i in 0..N/2-1;
+    :p1 := round_players[i]
+    p2 := round_players[N - 1 - i];
+
+    if (p1 is None or p2 is None?) then (si)
+      :match := Bye(player=el no-None, is_bye=true);
+    else (no)
+      :match := Match(player1=p1, player2=p2, is_bye=false);
+    endif
+
+    :matches.append(match);
+  repeat while (hay mas i?) is (si)
+  ->no;
+
+  :rounds.append(Round(number=r+1, matches));
+  :rotating := [rotating[-1]] + rotating[:-1]
+  (rota el ultimo al frente);
+repeat while (hay mas r?) is (si)
+->no;
+
+:devolver rounds;
+
+stop
+
+note right
+Propiedades verificables por test:
+ - completeness: cada par {p_i, p_j} con i!=j aparece UNA vez.
+ - fairness-bye (N impar): cada jugador real tiene EXACTAMENTE un match con is_bye=true.
+ - determinismo: misma entrada -> misma salida.
+end note
+
+@enduml

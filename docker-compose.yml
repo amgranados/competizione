@@ -1,0 +1,62 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: competizione-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-competizione}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-competizione}
+      POSTGRES_DB: ${POSTGRES_DB:-competizione}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # M-05: NO publicar Postgres en todas las interfaces. En dev se expone sólo
+    # en loopback para herramientas locales (psql/DBeaver); el backend lo alcanza
+    # por la red interna de Compose (`postgres:5432`) sin necesidad de este mapeo.
+    # En producción, usar docker-compose.prod.yml (sin `ports`).
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-competizione} -d ${POSTGRES_DB:-competizione}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: competizione-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Secretos y config del backend (incl. RIOT_API_KEY) se inyectan en
+    # runtime desde backend/.env — NO se hornean en la imagen. Editar la key
+    # y reiniciar el contenedor basta; no hace falta reconstruir.
+    env_file:
+      - ./backend/.env
+    # `environment` se aplica DESPUÉS de env_file, así que aquí solo van los
+    # valores que deben sobrescribir/derivar de la red de Compose (el host de
+    # Postgres es `postgres`, no `localhost`).
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-competizione}:${POSTGRES_PASSWORD:-competizione}@postgres:5432/${POSTGRES_DB:-competizione}
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Baked into the bundle at build time. The browser hits the backend
+        # directly at this URL, so it must be reachable from the host.
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+    container_name: competizione-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "5173:80"
+
+volumes:
+  postgres_data:

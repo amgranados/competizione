@@ -1,0 +1,180 @@
+openapi: 3.1.0
+info:
+  title: Competizione — Matches API
+  version: 0.2.0
+  description: |
+    Contrato REST para enfrentamientos (feature 002).
+    Herencia: autenticación en cookie HttpOnly `access_token` (feature 001).
+
+    Alcance de esta iteración: sólo se expone el registro manual de resultados
+    (FR-040..FR-044). El endpoint de verificación por API (FR-034..FR-039)
+    está **diferido** y NO forma parte de esta iteración.
+
+servers:
+  - url: /
+
+security:
+  - cookieAuth: []
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: access_token
+
+  parameters:
+    MatchId:
+      in: path
+      name: matchId
+      required: true
+      schema:
+        $ref: '#/components/schemas/UUID'
+
+  responses:
+    Unauthorized:
+      description: No autenticado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: No existe o el usuario no tiene permiso
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: Autenticado pero sin permiso
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: Precondición de estado no satisfecha
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    UUID:
+      type: string
+      format: uuid
+    ISODateTime:
+      type: string
+      format: date-time
+    Error:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          type: string
+        code:
+          type: string
+    MatchState:
+      type: string
+      enum: [pending, manual]
+      description: |
+        'verified_api' se reserva para la iteración futura. En esta iteración
+        el servicio nunca devuelve ese valor.
+    Match:
+      type: object
+      required: [id, tournament_id, round_number, player1_id, is_bye, state]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        tournament_id:
+          $ref: '#/components/schemas/UUID'
+        round_number:
+          type: integer
+        bracket_position:
+          type: integer
+          nullable: true
+        player1_id:
+          $ref: '#/components/schemas/UUID'
+        player2_id:
+          $ref: '#/components/schemas/UUID'
+          nullable: true
+        is_bye:
+          type: boolean
+        tournament_code:
+          type: string
+          nullable: true
+          description: |
+            Presente para organizador y los 2 jugadores del match; elidido
+            para cualquier otro lector autorizado. Null cuando is_bye = true.
+        code_created_at:
+          $ref: '#/components/schemas/ISODateTime'
+          nullable: true
+        state:
+          $ref: '#/components/schemas/MatchState'
+        winner_participant_id:
+          $ref: '#/components/schemas/UUID'
+          nullable: true
+        resolved_at:
+          $ref: '#/components/schemas/ISODateTime'
+          nullable: true
+    ManualResultRequest:
+      type: object
+      required: [winner_participant_id]
+      properties:
+        winner_participant_id:
+          $ref: '#/components/schemas/UUID'
+          description: Debe ser player1_id o player2_id del match.
+
+paths:
+  /matches/{matchId}:
+    parameters:
+      - $ref: '#/components/parameters/MatchId'
+    get:
+      summary: Detalle de enfrentamiento
+      description: |
+        Organizador y jugadores ven `tournament_code`; otros lectores con acceso
+        al torneo (p. ej., otros participantes) lo reciben como null.
+      responses:
+        '200':
+          description: Match
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Match'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /matches/{matchId}/manual-result:
+    parameters:
+      - $ref: '#/components/parameters/MatchId'
+    post:
+      summary: Registrar resultado manual (FR-040..FR-044)
+      description: |
+        Sólo el organizador. Marca el match como `manual` (etiqueta permanente, FR-042).
+        En single-elim avanza al ganador (FR-043). Si es la gran final, finaliza el torneo
+        (FR-050). En round-robin, recalcula la clasificación. Genera notificaciones para
+        ambos jugadores (type = match_resolved).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManualResultRequest'
+      responses:
+        '200':
+          description: Match con state = manual
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Match'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: |
+            Precondición fallida: match ya resuelto (FR-042 inamovible),
+            match pertenece a ronda futura no abierta (FR-045),
+            torneo no activo, o `winner_participant_id` no es jugador del match.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
